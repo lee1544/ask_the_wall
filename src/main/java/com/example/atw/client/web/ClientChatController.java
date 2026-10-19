@@ -11,6 +11,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
+
+import java.io.IOException;
 
 @RestController
 @RequestMapping("/api/v1/client")
@@ -26,8 +29,8 @@ public class ClientChatController {
     private ChatService chatService;
 
     @PostMapping(value = "/chat/completions", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<?> completions(@RequestBody(required = false) String raw,
-                                         @RequestHeader(value = "X-Request-ID", required = false) String headerId) {
+    public ResponseEntity<ResponseBodyEmitter> completions(@RequestBody(required = false) String raw,
+                                                           @RequestHeader(value = "X-Request-ID", required = false) String headerId) {
         Integer userId = UserContextUtil.getCurrentUserId();
         ChatRequest request = clientJson.parse(raw, properties.getChat().getMaxRequestBytes(), ChatRequest.class);
         String requestId = clientJson.requireRequestId(headerId, request.getRequestId());
@@ -46,12 +49,24 @@ public class ClientChatController {
                     .contentType(MediaType.APPLICATION_JSON)
                     .header("X-Config-Version", outcome.getConfigVersion())
                     .header("Cache-Control", "no-store")
-                    .body(outcome.getReplay());
+                    .body(jsonEmitter(outcome.getReplay()));
         }
         return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_JSON)
                 .header("X-Config-Version", outcome.getConfigVersion())
                 .header("Cache-Control", "no-store")
-                .body(outcome.getResponse());
+                .body(jsonEmitter(outcome.getResponse()));
+    }
+
+    private ResponseBodyEmitter jsonEmitter(Object payload) {
+        ResponseBodyEmitter emitter = new ResponseBodyEmitter();
+        try {
+            emitter.send(payload, MediaType.APPLICATION_JSON);
+            emitter.complete();
+        } catch (IOException e) {
+            throw new IllegalStateException("响应写入失败", e);
+        }
+        return emitter;
     }
 
     @PostMapping("/chat/{generationId}/stop")

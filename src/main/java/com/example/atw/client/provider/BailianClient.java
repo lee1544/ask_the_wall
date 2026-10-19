@@ -6,6 +6,8 @@ import com.example.atw.client.error.ClientCodes;
 import com.example.atw.client.support.OssUrlValidator;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -18,6 +20,8 @@ import java.util.Map;
 
 @Service
 public class BailianClient {
+
+    private static final Logger log = LoggerFactory.getLogger(BailianClient.class);
 
     @Autowired
     private ClientModelProperties properties;
@@ -232,12 +236,16 @@ public class BailianClient {
                 properties.getBailian().getConnectTimeoutMs(),
                 readTimeoutMs);
         if (result.getStatus() >= 400) {
+            log.warn("Bailian 请求失败 status={} message={}", result.getStatus(),
+                    providerMessage(result.getBody()));
             throw mapError(result.getStatus(), result.getBody());
         }
         try {
             JsonNode root = objectMapper.readTree(result.getBody());
             if (root.has("code") && !root.get("code").isNull()
                     && !isSuccessCode(root.get("code").asText())) {
+                log.warn("Bailian 返回错误 status={} code={} message={}", result.getStatus(),
+                        root.get("code").asText(), providerMessage(result.getBody()));
                 throw mapError(result.getStatus(), result.getBody());
             }
             return root;
