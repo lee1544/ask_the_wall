@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
@@ -150,16 +151,27 @@ public class BailianClient {
                 }
             }
         }
-        return OssUrlValidator.toSecureUrl(url);
+        String secureUrl = OssUrlValidator.toSecureUrl(url);
+        log.debug("Bailian 图片地址 host={} path={}", host(secureUrl), path(secureUrl));
+        return secureUrl;
     }
 
     public byte[] downloadOss(String secureUrl, int maxBytes, int timeoutMs) {
-        HttpJsonClient.DownloadResult result = http.download(
-                secureUrl,
-                maxBytes,
-                properties.getBailian().getConnectTimeoutMs(),
-                timeoutMs);
+        HttpJsonClient.DownloadResult result;
+        try {
+            result = http.download(
+                    secureUrl,
+                    maxBytes,
+                    properties.getBailian().getConnectTimeoutMs(),
+                    timeoutMs);
+        } catch (ClientApiException e) {
+            log.warn("Bailian OSS 下载异常 host={} status={} code={} message={}",
+                    host(secureUrl), e.getStatus(), e.getCode(), e.getMessage());
+            throw e;
+        }
         if (result.getStatus() != 200 || result.getBody() == null) {
+            log.warn("Bailian OSS 下载失败 host={} status={} type={}",
+                    host(secureUrl), result.getStatus(), result.getContentType());
             throw upstream("模型结果下载失败");
         }
         String contentType = result.getContentType();
@@ -260,6 +272,22 @@ public class BailianClient {
         Map<String, String> headers = new LinkedHashMap<>();
         headers.put("Authorization", "Bearer " + properties.getBailian().getApiKey());
         return headers;
+    }
+
+    private String host(String url) {
+        try {
+            return new URI(url).getHost();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private String path(String url) {
+        try {
+            return new URI(url).getPath();
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private String origin() {
