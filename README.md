@@ -1,6 +1,6 @@
-# Ask The Wall (用户权限模块)
+# Ask The Wall 后端
 
-基于 `content_review_platform` 搭建的 Spring Boot 脚手架，仅保留**用户权限模块**：登录认证、组织管理、用户管理、角色管理、权限分配，并新增**License 授权（服务端签发 + 客户端机器码绑定）**。
+基于 `content_review_platform` 搭建的 Spring Boot 后端，包含**用户权限模块**（登录认证、组织/用户/角色/权限管理）、**License 授权**（服务端签发 + 客户端机器码绑定），以及供 Electron 客户端调用的 **`/api/v1/client` 模型代理接口**：DeepSeek 对话/摘要、百炼 ASR/TTS/头像/向量。供应商地址、密钥和底层模型名只在服务端保存，不下发客户端。
 
 ## 技术栈
 
@@ -11,31 +11,62 @@
 | Spring Security + JWT (jjwt) | 0.9.1 |
 | Spring Data JPA | 2.6.13 |
 | Druid / MySQL | 1.2.20 / 8.0.33 |
+| DeepSeek API | 对话 / 摘要 |
+| 阿里云百炼（DashScope） | ASR / TTS / 头像 / 向量 |
 | Lombok | - |
 
 ## 快速开始
 
-1. 初始化数据库（建表 + 初始数据）：
+1. 初始化数据库：
 
    ```bash
+   # 全新部署（用户权限 + License + 客户端模型接口表）
    mysql -u root -p ask_the_wall < src/main/resources/static/system_init.sql
    ```
 
-   默认超级管理员：**admin / admin123**
-
-2. 配置数据库连接（可选，默认见 `application-dev.properties`）：
+   已有旧库按需执行升级脚本（均可重复执行）：
 
    ```bash
-   mvn spring-boot:run -Dspring-boot.run.profiles=dev
+   mysql -u root -p ask_the_wall < src/main/resources/static/license_upgrade.sql
+   mysql -u root -p ask_the_wall < src/main/resources/static/client_upgrade.sql
    ```
 
-   或使用环境变量：`DB_URL`、`DB_USERNAME`、`DB_PASSWORD`、`JWT_SECRET`。
+   默认超级管理员：**admin / admin123**。
 
-3. 单元测试（需要 Maven 3.5+，JUnit 5）：
+2. 配置数据库与供应商密钥（`application-dev.properties` 支持环境变量覆盖）：
+
+   ```properties
+   DB_URL=jdbc:mysql://localhost:3306/ask_the_wall?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+   DB_USERNAME=root
+   DB_PASSWORD=你的密码
+   JWT_SECRET=请改成足够长的随机字符串
+   DEEPSEEK_API_KEY=sk-...
+   BAILIAN_API_KEY=sk-...
+   ```
+
+   客户端联调其他功能时可临时关闭 License 强制校验：
+
+   ```bash
+   LICENSE_ENFORCE=false
+   ```
+
+3. 构建并启动（端口 8088）：
+
+   ```bash
+   mvn -o -B -DskipTests package
+   java -jar target/ask_the_wall-0.0.1-SNAPSHOT.jar --spring.profiles.active=dev
+   ```
+
+   或直接运行：`mvn spring-boot:run -Dspring-boot.run.profiles=dev`。
+
+4. 单元测试（JUnit 5）：
 
    ```bash
    mvn test
    ```
+
+   `mvn test` 需要 Maven 3.5+；本项目离线环境使用 Maven 3.0.5 + surefire 2.10 时
+   无法直接运行 JUnit 5，可在 IDE 中运行测试或使用 JUnit Platform Launcher。
 
 ## 目录结构
 
@@ -52,7 +83,14 @@ src/main/java/com/example/atw
 ├── repository/     JPA 仓储
 ├── service/        Auth / User / Organization / Role / Permission / UserRole / License / LicenseKey / ActivationCode
 ├── utils/          JwtTokenUtil、UserContextUtil、LicenseCryptoUtil、MachineCodeUtil
-└── web/            Auth / User / Organization / Role / License 控制器
+├── web/            Auth / User / Organization / Role / License 控制器
+└── client/         客户端模型代理
+    ├── web/        Chat / Voice / Avatar / Embedding / Media / Capabilities 控制器
+    ├── service/    对话、语音、头像、向量、媒体、请求恢复与清理
+    ├── provider/   DeepSeek、百炼、HTTP/SSE 客户端
+    ├── dto/        客户端请求/响应对象
+    ├── entity/     t_client_request / t_client_media / t_client_image_job
+    └── support/    WAV/PNG 校验、OSS 地址校验、哈希/时间工具
 ```
 
 ## License 授权（服务端签发 + 客户端机器码绑定）
@@ -308,6 +346,10 @@ fetch(url, { headers: { 'X-License': storedLicenseKey, 'Authorization': `Bearer 
 | 404 | 资源不存在 |
 | 500 | 服务器内部错误 |
 
+> 上表适用于管理端接口；`/api/v1/client` 使用独立的错误体
+> `{error, code, requestId}`，并增加 409/410/413/422/429/503/504 等状态码，详见
+> “客户端模型接口”章节。
+
 ### 1. 认证 (Auth)
 
 | 方法 | 路径 | 说明 |
@@ -396,29 +438,261 @@ fetch(url, { headers: { 'X-License': storedLicenseKey, 'Authorization': `Bearer 
 
 ## 客户端模型接口（/api/v1/client）
 
-统一由后端调用 DeepSeek / 百炼，供应商地址、密钥和底层模型名不下发客户端。详细契约见
-`src/main/resources/md/backend-api-minimal-contract.md`。
+统一由后端调用 DeepSeek / 百炼，供应商地址、密钥和底层模型名不下发客户端。详细字段与边界见
+`src/main/resources/md/backend-api-minimal-contract.md`，供应商参考见
+`src/main/resources/md/backend-model-provider-reference.md`。
+
+### 通用约定
+
+| 项目 | 说明 |
+|------|------|
+| 认证 | `Authorization: Bearer <JWT>` |
+| License | 生成类接口需 `X-License: <licenseKey>`；`capabilities`、`requests`、`image-jobs`、`media`、`chat/{id}/stop` 豁免 |
+| 请求 ID | `X-Request-ID` 或请求体 `requestId`；同一 ID + 相同参数重放首次结果，参数不同返回 409 `REQUEST_CONFLICT` |
+| 缓存 | 所有客户端响应带 `Cache-Control: no-store`；对话/合成等成功响应可能带 `X-Config-Version` |
+| 错误体 | `{"error":"...","code":"...","requestId":"..."}`；415/405 也使用该格式 |
+| 保留期 | 请求记录、头像任务、临时媒体默认保留 24 小时 |
+
+`license.enforce=false`（dev 联调）时可不带 `X-License`。`capabilities` 在无有效 License
+或未配置供应商密钥时对应能力 `available=false`。
 
 ### 接口
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/api/v1/client/capabilities` | 能力与版本；登录即可访问，未授权时 `available=false` |
-| POST | `/api/v1/client/chat/completions` | 对话（SSE 或 JSON）、摘要 |
-| POST | `/api/v1/client/chat/{generationId}/stop` | 停止同一生成组 |
-| GET | `/api/v1/client/requests/{requestId}` | 统一恢复查询 |
-| POST | `/api/v1/client/voice/recognize` | WAV（PCM16/16kHz/单声道）识别 |
-| POST | `/api/v1/client/voice/synthesize` | 按 segmentIndex 合成片段 |
-| POST | `/api/v1/client/avatar/generate` | 创建头像异步任务（202） |
-| GET | `/api/v1/client/image-jobs/{id}` | 查询头像任务 |
-| DELETE | `/api/v1/client/image-jobs/{id}` | 取消头像任务 |
-| POST | `/api/v1/client/embeddings` | 1024 维向量 |
-| GET | `/api/v1/client/media/{id}` | 临时音频/图片下载（支持 Range） |
+| GET | `/capabilities` | 能力与版本；登录即可访问 |
+| POST | `/chat/completions` | 对话（SSE 或 JSON）、摘要 |
+| POST | `/chat/{generationId}/stop` | 停止同一生成组 |
+| GET | `/requests/{requestId}` | 统一恢复查询 |
+| POST | `/voice/recognize` | WAV（PCM16/16kHz/单声道）识别 |
+| POST | `/voice/synthesize` | 按 `segmentIndex` 合成片段 |
+| POST | `/avatar/generate` | 创建头像异步任务（202） |
+| GET | `/image-jobs/{id}` | 查询头像任务 |
+| DELETE | `/image-jobs/{id}` | 取消头像任务 |
+| POST | `/embeddings` | 1024 维向量 |
+| GET | `/media/{id}` | 临时音频/图片下载（支持 Range） |
 
-鉴权沿用现有 JWT（`Authorization: Bearer`）与 `X-License`。`/capabilities`、
-`/requests/**`、`/image-jobs/**`、`/media/**` 和 `/chat/{id}/stop` 不因 License 过期被
-LicenseFilter 拦截；生成类接口仍要求有效 License。所有客户端 JSON 错误体为
-`{"error","code","requestId"}`，成功 JSON 带 `Cache-Control: no-store`。
+> 以下示例省略 `/api/v1/client` 前缀。
+
+### 1. 能力查询
+
+```http
+GET /capabilities
+Authorization: Bearer <token>
+X-License: ATW1...
+```
+
+```json
+{
+  "chat": {"available": true, "spaceId": "chat-policy-v1", "contextBudget": 8192, "maxOutputTokens": 1536},
+  "image": {"available": true, "configVersion": "image-policy-v1", "maxPromptChars": 3000},
+  "voice": {"available": true, "recognitionAvailable": true, "synthesisAvailable": true, "configVersion": "voice-policy-v1"},
+  "embedding": {"available": true, "spaceId": "embedding-space-v1", "dimensions": 1024}
+}
+```
+
+### 2. 对话
+
+非流式请求：
+
+```json
+{
+  "requestId": "req-chat-001",
+  "generationId": "gen-001",
+  "purpose": "answer",
+  "stream": false,
+  "expectedPolicyVersion": "chat-policy-v1",
+  "max_tokens": 512,
+  "messages": [
+    {"role": "system", "content": "你是一个简洁的助手。"},
+    {"role": "user", "content": "说一句 OK。"}
+  ]
+}
+```
+
+响应：
+
+```json
+{
+  "requestId": "req-chat-001",
+  "choices": [
+    {"index": 0, "message": {"role": "assistant", "content": "OK"}, "finish_reason": "stop"}
+  ],
+  "usage": {"prompt_tokens": 42, "completion_tokens": 2, "total_tokens": 44}
+}
+```
+
+约束：`purpose` 为 `answer` 或 `summary`；`summary` 必须非流式；`messages` 第一条必须是
+`system`、最后一条必须是 `user`，最多 1024 条；`max_tokens` 范围 1–1536。
+
+流式请求将 `stream` 设为 `true`，响应为 `text/event-stream`：
+
+```text
+data:{"choices":[{"index":0,"delta":{"content":"OK"},"finish_reason":null}]}
+
+data:{"choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":42,"completion_tokens":2,"total_tokens":44}}
+
+data:[DONE]
+```
+
+恢复与停止：
+
+```http
+GET /requests/req-chat-001
+Authorization: Bearer <token>
+```
+
+```json
+{"requestId":"req-chat-001","operation":"chat","generationId":"gen-001","state":"completed","httpStatus":200,"result":{...},"expiresAt":"2026-10-20T12:00:00Z"}
+```
+
+```http
+POST /chat/gen-001/stop
+Authorization: Bearer <token>
+```
+
+### 3. 语音识别（ASR）
+
+请求体为原始 WAV 二进制，不是 JSON：
+
+```http
+POST /voice/recognize
+Authorization: Bearer <token>
+Content-Type: audio/wav
+X-Request-ID: req-asr-001
+
+<WAV: PCM 16-bit, 16000 Hz, mono, 0.1–60s, <= 1,920,044 bytes>
+```
+
+```json
+{"text":"你好，欢迎来到展厅。","requestId":"req-asr-001"}
+```
+
+无有效语音返回 422 `NO_SPEECH`。
+
+### 4. 语音合成（TTS）
+
+```json
+{
+  "requestId": "req-tts-001",
+  "text": "你好，欢迎使用。",
+  "segmentIndex": 0,
+  "expectedConfigVersion": "voice-policy-v1"
+}
+```
+
+```json
+{
+  "url": "/api/v1/client/media/<mediaId>",
+  "segmentIndex": 0,
+  "segmentCount": 1,
+  "cached": false,
+  "configVersion": "voice-policy-v1",
+  "expiresAt": "2026-10-20T12:00:00Z"
+}
+```
+
+`segmentIndex` 省略时默认 0；文本会按 `speech-segments-v1` 分段，客户端应按
+`segmentIndex` 逐段取用，不要拼接不同 `configVersion` 的片段。
+
+### 5. 头像
+
+创建任务（异步，返回 202）：
+
+```json
+{
+  "requestId": "req-avatar-001",
+  "prompt": "A friendly cartoon avatar, head and shoulders, simple blue background."
+}
+```
+
+```json
+{
+  "job": {
+    "id": "job-...",
+    "state": "queued",
+    "message": "等待生成",
+    "createdAt": "2026-10-19T12:00:00Z",
+    "pollAfterMs": 1000
+  }
+}
+```
+
+轮询 `GET /image-jobs/{id}`，状态为
+`queued → running → downloading → complete | error | cancelled`；完成后返回
+`url: "/api/v1/client/media/<mediaId>"` 与 `expiresAt`。`DELETE /image-jobs/{id}` 可取消
+未完成任务；取消只停止后续流程，已提交给供应商的生成可能仍会计费。
+
+可选参考图（仅 JPEG Data URL）：
+
+```json
+{
+  "requestId": "req-avatar-002",
+  "prompt": "保留人物主要特征，换成蓝色背景。",
+  "image": "data:image/jpeg;base64,..."
+}
+```
+
+参考图要求：JPEG、边长 240–8000、宽高比不超过 8:1、不超过 20 MiB。
+
+### 6. 向量
+
+```json
+{
+  "requestId": "req-emb-001",
+  "texts": ["第一段文本", "第二段文本"],
+  "textType": "document",
+  "expectedSpaceId": "embedding-space-v1"
+}
+```
+
+```json
+{
+  "requestId": "req-emb-001",
+  "vectors": [[0.01, 0.02, 0.03], [0.04, 0.05, 0.06]],
+  "dimensions": 1024,
+  "spaceId": "embedding-space-v1",
+  "usage": {"total_tokens": 8}
+}
+```
+
+`textType` 为 `document` 或 `query`；单次最多 10 段，每段最多 4000 字符。
+
+### 7. 媒体下载
+
+```http
+GET /media/<mediaId>
+Authorization: Bearer <token>
+Range: bytes=0-99
+```
+
+返回 `audio/wav` 或 `image/png`；支持 `Range`（206）与 `Accept-Ranges: bytes`，不支持
+匿名访问。媒体默认 24 小时后返回 410 `RESOURCE_EXPIRED`。
+
+### 客户端错误码
+
+| code | 常见状态码 | 说明 |
+|------|------------|------|
+| `INVALID_ARGUMENT` | 400 / 405 / 415 | 参数、Content-Type 或请求方法不支持 |
+| `CONTEXT_TOO_LARGE` | 400 | 对话上下文超出预算 |
+| `AUTH_EXPIRED` | 401 | 登录态失效 |
+| `LICENSE_REQUIRED` | 403 | 缺少/无效 License |
+| `LICENSE_EXPIRED` | 403 | License 已过期 |
+| `REQUEST_CONFLICT` | 409 | 同一 requestId 参数不一致 |
+| `REQUEST_IN_PROGRESS` | 409 | 同一 requestId 正在处理中 |
+| `CONFIG_CHANGED` | 409 | 对话/语音配置版本变化 |
+| `INDEX_SPACE_CHANGED` | 409 | 向量空间版本变化 |
+| `REQUEST_CANCELLED` | 409 | 请求已停止 |
+| `PAYLOAD_TOO_LARGE` | 413 | 请求体或音频过大 |
+| `CONTENT_REJECTED` | 422 | 内容安全拒绝 |
+| `NO_SPEECH` | 422 | 无有效语音 |
+| `NO_READABLE_TEXT` | 422 | 无可合成文本 |
+| `RATE_LIMITED` | 429 | 供应商限流 |
+| `REQUEST_NOT_FOUND` / `JOB_NOT_FOUND` / `RESOURCE_NOT_FOUND` | 404 | 资源不存在 |
+| `REQUEST_EXPIRED` / `RESOURCE_EXPIRED` | 410 | 记录/媒体已过期 |
+| `UPSTREAM_TIMEOUT` | 504 | 供应商超时 |
+| `SERVICE_UNAVAILABLE` / `UPSTREAM_ERROR` | 503 | 供应商不可用或返回异常 |
+| `INTERNAL_ERROR` | 500 | 服务端内部错误 |
 
 ### 配置
 
@@ -428,7 +702,13 @@ DEEPSEEK_BASE_URL=https://api.deepseek.com
 DEEPSEEK_MODEL=deepseek-flash
 BAILIAN_API_KEY=...
 BAILIAN_ORIGIN=https://dashscope.aliyuncs.com
+BAILIAN_ASR_MODEL=qwen3-asr-flash
+BAILIAN_TTS_MODEL=qwen3-tts-flash
+BAILIAN_TTS_VOICE=Cherry
+BAILIAN_IMAGE_MODEL=wan2.7-image
+BAILIAN_EMBEDDING_MODEL=text-embedding-v4
 CLIENT_MEDIA_DIR=./data/media
+LICENSE_ENFORCE=true
 ```
 
 其余限制/版本见 `application.properties` 的 `client.*` 段。管理端如调整模型、音色或
@@ -445,6 +725,16 @@ mysql -u root -p ask_the_wall < src/main/resources/static/client_upgrade.sql
 ```
 
 全新部署可直接执行 `system_init.sql`（已包含这些表）。`client_upgrade.sql` 可重复执行。
+客户端表：`t_client_request`、`t_client_media`、`t_client_image_job`。
+
+### 本地已验证
+
+使用真实供应商密钥在 dev profile 下完成过以下联调：
+
+- 对话非流式、SSE 流式、`/requests/{id}` 重放、停止；
+- 向量 1024 维、ASR（16kHz WAV）、TTS 与媒体下载/Range；
+- 头像 202 → `complete`，产物为 2048×2048 PNG；
+- License 缺失/非法 403、有效 License 200，以及豁免接口不带 License 可访问。
 
 ### 部署注意
 
