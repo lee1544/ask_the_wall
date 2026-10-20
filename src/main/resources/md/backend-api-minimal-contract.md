@@ -1,6 +1,6 @@
 # 客户端服务 API 实现规范
 
-文档修订：2026-10-19。接口契约版本：1.1。适用对象：独立服务端开发与联调人员。本文可以独立阅读，不需要客户端源码。路径、字段与配套 JSON 示例保持一致，本次修订不改变接口协议。
+文档修订：2026-10-20。接口契约版本：1.2。适用对象：独立服务端开发与联调人员。本文可以独立阅读，不需要客户端源码。路径、字段与配套 JSON 示例保持一致，本次修订增加免 JWT 接口范围，不改变请求/响应结构。
 
 配套材料：[模型供应商接入规范](backend-model-provider-reference.md)、[完整请求/响应示例](backend-api-examples.json)。示例均为合成数据，不含真实密钥。尚未确定的事项见第 13 节。
 
@@ -36,16 +36,36 @@
 
 模型配置仅对超级管理员开放，不向普通客户端下发供应商地址或密钥。管理后台的配置 CRUD 不属于本文 19 项客户端接口，须单独约定。
 
+### 1.1 免 JWT 接口
+
+以下对话、语音与只读接口不要求 `Authorization`。未登录调用按匿名归属处理；`license.enforce=true` 时，生成类接口仍需 `X-License`，头像接口始终要求 JWT。免 JWT 不代表免限流，部署时应在网关或应用层按设备/IP 限流。
+
+| 方法 | 路径 | 免 JWT | 说明 |
+| --- | --- | --- | --- |
+| GET | /capabilities | 是 | 游客可先取能力与版本 |
+| POST | /chat/completions | 是 | 普通对话、智能体、摘要 |
+| POST | /chat/:generationId/stop | 是 | 停止当前回答 |
+| GET | /requests/:requestId | 是 | 恢复当前发起方的请求 |
+| POST | /voice/recognize | 是 | 语音识别 |
+| POST | /voice/synthesize | 是 | 语音合成 |
+| GET | /media/:id | 是 | 获取临时音频/图片 |
+| POST | /embeddings（textType=query） | 是 | 游客问题检索既有本地索引 |
+| POST | /embeddings（textType=document） | 否 | 登录用户导入资料、建立索引 |
+| POST | /avatar/generate | 否 | 登录后生成数字人形象 |
+| GET/DELETE | /image-jobs/:id | 否 | 登录用户查看/取消头像任务 |
+
+匿名请求没有账号身份，服务端按固定匿名归属保存请求记录与媒体。客户端必须使用全局唯一且不可预测的 requestId（建议 UUID），并且不得复用其他账号的 requestId；媒体 ID 为随机值，在有效期内可下载。
+
 ## 2. 公共约定
 
-- 生产环境 HTTPS。认证建议 `Authorization: Bearer <accessToken>`，实际凭据由独立后端发放，不能使用供应商 API Key。设备绑定通过服务端会话校验，具体采用第 10 节的激活后绑定 token 方案，不能仅信任裸机器码。客户端内部令牌不能作为远程身份凭据。
+- 生产环境 HTTPS。除 1.1 节列出的免 JWT 接口外，认证使用 `Authorization: Bearer <accessToken>`，实际凭据由独立后端发放，不能使用供应商 API Key。设备绑定通过服务端会话校验，具体采用第 10 节的激活后绑定 token 方案，不能仅信任裸机器码。客户端内部令牌不能作为远程身份凭据。
 - JSON 成功响应直接返回业务对象，不额外包 `{data: ...}`，以保证统一解析。错误保留字符串 error，同时增加稳定 code。
 - 时间 ISO 8601 UTC。ID 使用不透明字符串；客户端不依赖数据库数值 ID。所有 maxChars 均按 JavaScript UTF-16 code units 计算（emoji 等可能计为两个单位），后端其他语言不能直接按字节限制。空间、配置版本的具体字符串都只是示例，必须当不透明值比较。本期支持的能力仅限本文列出的接口。
 - 请求幂等 requestId 最多 100 字符；JSON 可放请求体，二进制录音使用 `X-Request-ID`。若头和体同时传且不一致，返回 400。
 - 幂等键统一为（userId、requestId），跨本期所有模型接口保持唯一。记录 operation 与规范化请求体摘要；同一 ID 换接口、换参数均返回 409 REQUEST_CONFLICT。处理中重复提交返回 409 REQUEST_IN_PROGRESS；终态重复提交重放既有响应，不再次付费。所有操作都能用 GET /requests/:requestId 恢复，见第 4.5 节。
 - 不自动重试任何可能付费的生成。幂等记录须跨后端重启可用。第一期统一约定：终态请求记录和可恢复结果至少保留至结束后 24 小时；图片/音频成功结果也至少保留至成功后 24 小时。expiresAt 返回实际过期时间，实际保留期不得短于承诺。运行中的任务不得因记录 TTL 提前清除。
 - 严格禁止普通用户通过 model/baseUrl/apiKey/region 等字段覆盖管理配置；若请求包含这些禁止字段，建议返回 400。
-- 图片/音频/请求状态/停止操作都验证用户归属。并发上限由服务端按用户和授权控制，不能将所有用户串行为单个任务。
+- 图片/音频/请求状态/停止操作都验证归属。已登录请求按 userId 隔离；1.1 节免 JWT 请求按匿名归属隔离，因此匿名 requestId 必须全局唯一且不可猜测。并发上限由服务端按用户和授权控制，不能将所有用户串行为单个任务。
 - 建议操作时限：对话 120 秒、图片 180 秒、语音 90 秒、向量每批 60 秒。服务端与反向代理须协调超时；这些时限不代表模型响应速度保证。
 
 统一错误示例（HTTP 429）：
@@ -61,7 +81,7 @@
 
 至少区分：400 INVALID_ARGUMENT/CONTEXT_TOO_LARGE；401 INVALID_CREDENTIALS/AUTH_EXPIRED/SESSION_REVOKED；403 ACCOUNT_DISABLED/LICENSE_REQUIRED/LICENSE_EXPIRED/DEVICE_REVOKED/DEVICE_NOT_ACTIVATED/DEVICE_MISMATCH/DEVICE_LIMIT_REACHED；404 REQUEST_NOT_FOUND/JOB_NOT_FOUND/RESOURCE_NOT_FOUND；409 REQUEST_IN_PROGRESS/REQUEST_CONFLICT/INDEX_SPACE_CHANGED/CONFIG_CHANGED；410 REQUEST_EXPIRED/RESOURCE_EXPIRED；413 PAYLOAD_TOO_LARGE；422 CONTENT_REJECTED/NO_SPEECH/NO_READABLE_TEXT；429 RATE_LIMITED；503 SERVICE_UNAVAILABLE；504 UPSTREAM_TIMEOUT。
 
-请求处理顺序：校验身份/归属 → 查同 userId/requestId 的幂等记录并重放 → 新请求才校验当前授权、请求限制、配置版本 → 原子登记 → 调用供应商。对新请求的版本不一致、参数校验等失败不能触发上游。记录原 operation、原终态状态码和结果，不能把供应商成功但返回链路失败当作可重新执行的新请求。
+请求处理顺序：校验身份/归属（免 JWT 接口允许匿名，匿名请求使用固定匿名归属）→ 查同 userId/requestId 的幂等记录并重放 → 新请求才校验当前授权、请求限制、配置版本 → 原子登记 → 调用供应商。对新请求的版本不一致、参数校验等失败不能触发上游。记录原 operation、原终态状态码和结果，不能把供应商成功但返回链路失败当作可重新执行的新请求。
 
 所有 JSON 响应与实际下载使用 Cache-Control: no-store（应用自己做按账号隔离的受控缓存）；不将应用凭据或原文写入普通接入日志。模型输入仅在处理期间使用，短期恢复结果与任务资源按到期清理，不长期保存对话/知识库正文。
 
@@ -273,7 +293,7 @@ stopped 可以额外带 partialContent，但不能作为正常完成。头像创
 
 ```http
 POST /api/v1/client/voice/recognize
-Authorization: Bearer <应用访问凭据>
+# Authorization: Bearer <可选；游客可省略>
 Content-Type: audio/wav
 X-Request-ID: req-asr-001
 
@@ -411,6 +431,8 @@ complete 仅在后端已取得并校验结果后返回。图片结果为真实 P
 ## 8. POST /embeddings
 
 客户端已完成文档分段；服务端只负责文本转向量，不重复切块，不实现知识库 CRUD 或相似度检索。
+
+textType=query 免 JWT，可按匿名归属调用；textType=document 必须携带 JWT，未登录返回 401 AUTH_EXPIRED。两种类型都在写入幂等记录前校验 textType，非法值返回 400 INVALID_ARGUMENT。
 
 | 字段 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- |

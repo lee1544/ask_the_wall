@@ -67,7 +67,7 @@
 
 ## 尚未宣称完成
 
-真实头像下载成功、TTS 播放成功、多音色、游客在线问答、License、现场麦克风及扬声器通话体验、Windows 安装验收。测试凭据和 JWT 不写入本文或仓库。
+真实头像下载成功、TTS 播放成功、多音色、游客 TTS 播放、License、现场麦克风及扬声器通话体验、Windows 安装验收。测试凭据和 JWT 不写入本文或仓库。
 
 ## 客户端检查
 
@@ -98,16 +98,28 @@ TTS 下载失败时增加 host/status/content-type 安全日志。
 - 音色已加入幂等哈希与媒体缓存键；`voice.configVersion` 在音色列表/默认音色变化时更新。
 - 默认音色请求可继续不带 `voice`，现有客户端无需改动。
 
-### 3. 游客远程凭据：未实现，需要产品/安全决策
+### 3. 免 JWT 对话接口：已实现
 
-这不是接口缺陷，而是登录体系的缺口。直接开放匿名模型接口会绕过 License、额度和滥用
-控制，暂不能以“假身份”或内置账号方式修复。建议单独确认以下方案后再实现：
+未建立独立游客账号或设备注册流程。`/capabilities`、`/chat/completions`、
+`/chat/{generationId}/stop`、`/requests/{requestId}`、`/voice/recognize`、
+`/voice/synthesize`、`/media/{id}` 以及 `textType=query` 的 `/embeddings`
+均不再要求 JWT。未登录请求使用固定匿名归属；`textType=document` 的向量、头像创建与
+头像任务查询仍要求 JWT。
 
-- 设备首次注册换取独立 guest token，绑定设备指纹，短期有效、可续期/撤销；
-- guest 仅允许受限的对话/向量查询，设置每日次数与并发上限，禁止头像等高成本操作；
-- 与 License 的关系（游客是否也要求 License）以及离线/换机行为。
+`license.enforce=true` 时，对话、语音和向量生成仍要求 `X-License`，License 约束不变。
+匿名 `requestId` 必须全局唯一且不可预测（建议 UUID），避免与其他匿名请求冲突或重放。
+
+已验证（本地 8089，新构建）：
+
+- 无 `Authorization` 调用 `/capabilities` 200；
+- 无 `Authorization` 调用非流式 `/chat/completions` 200，随后 `/requests/{id}` 200、
+  `/chat/{generationId}/stop` 200 `state=completed`；
+- 无 `Authorization` 的 `textType=query` 向量请求进入业务校验（409
+  `INDEX_SPACE_CHANGED`），`textType=document` 返回 401；
+- 无 `Authorization` 访问他人媒体返回 404，头像接口返回 401；
+- 一次无 JWT TTS 请求因供应商 90 秒超时返回 504 `UPSTREAM_TIMEOUT`，非鉴权问题。
 
 ### 部署提示
 
-修复已包含在新构建产物中，需要重启 8088 服务后前端再复测。上面两条已用新构建在
+修复已包含在新构建产物中，需要重启 8088 服务后前端再复测。上面第 1、2、3 条已用新构建在
 8089 端口完成真实验证；参考图头像分支与取消分支仍未覆盖。

@@ -2,8 +2,8 @@ package com.example.atw.client.web;
 
 import com.example.atw.client.error.ClientApiException;
 import com.example.atw.client.error.ClientCodes;
+import com.example.atw.client.service.ClientIdentityService;
 import com.example.atw.client.service.ClientMediaService;
-import com.example.atw.utils.UserContextUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.FileSystemResource;
@@ -11,6 +11,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import javax.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.file.Path;
@@ -22,10 +23,14 @@ public class ClientMediaController {
     @Autowired
     private ClientMediaService mediaService;
 
+    @Autowired
+    private ClientIdentityService identityService;
+
     @GetMapping("/media/{id}")
     public ResponseEntity<?> download(@PathVariable String id,
-                                      @RequestHeader(value = "Range", required = false) String range) {
-        Integer userId = UserContextUtil.getCurrentUserId();
+                                      @RequestHeader(value = "Range", required = false) String range,
+                                      HttpServletRequest httpRequest) {
+        Integer userId = identityService.requireOwnerId(httpRequest);
         ClientMediaService.MediaFile file = mediaService.open(userId, id);
         long size = file.size();
         MediaType mediaType = parseMediaType(file.getMedia().getContentType());

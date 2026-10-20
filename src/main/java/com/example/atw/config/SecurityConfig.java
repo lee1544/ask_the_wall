@@ -9,6 +9,7 @@ import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -56,6 +57,16 @@ public class SecurityConfig {
                 .authorizeRequests()
                 .antMatchers("/api/auth/**").permitAll()
                 .antMatchers("/api/license/activate", "/api/license/verify").permitAll()
+                // 对话/语音/向量查询等接口免 JWT；未登录请求使用固定匿名归属
+                .antMatchers(HttpMethod.GET, "/api/v1/client/capabilities").permitAll()
+                .antMatchers(HttpMethod.POST, "/api/v1/client/chat/completions").permitAll()
+                .antMatchers(HttpMethod.POST, "/api/v1/client/chat/*/stop").permitAll()
+                .antMatchers(HttpMethod.GET, "/api/v1/client/requests/*").permitAll()
+                .antMatchers(HttpMethod.POST, "/api/v1/client/voice/recognize").permitAll()
+                .antMatchers(HttpMethod.POST, "/api/v1/client/voice/synthesize").permitAll()
+                .antMatchers(HttpMethod.GET, "/api/v1/client/media/*").permitAll()
+                // 仅 textType=query 的游客请求在控制器内放行；document 仍要求登录
+                .antMatchers(HttpMethod.POST, "/api/v1/client/embeddings").permitAll()
                 .anyRequest().authenticated()
                 .and()
                 // Spring Security 自身的异常不走 GlobalExceptionHandler，这里统一返回 JSON 响应体

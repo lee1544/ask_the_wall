@@ -5,14 +5,15 @@ import com.example.atw.client.dto.ChatRequest;
 import com.example.atw.client.dto.RequestStatusResponse;
 import com.example.atw.client.dto.StopResponse;
 import com.example.atw.client.service.ChatService;
+import com.example.atw.client.service.ClientIdentityService;
 import com.example.atw.client.support.ClientJson;
-import com.example.atw.utils.UserContextUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
 
+import javax.servlet.http.HttpServletRequest;
 import java.io.IOException;
 
 @RestController
@@ -28,10 +29,14 @@ public class ClientChatController {
     @Autowired
     private ChatService chatService;
 
+    @Autowired
+    private ClientIdentityService identityService;
+
     @PostMapping(value = "/chat/completions", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ResponseBodyEmitter> completions(@RequestBody(required = false) String raw,
-                                                           @RequestHeader(value = "X-Request-ID", required = false) String headerId) {
-        Integer userId = UserContextUtil.getCurrentUserId();
+                                                           @RequestHeader(value = "X-Request-ID", required = false) String headerId,
+                                                           HttpServletRequest httpRequest) {
+        Integer userId = identityService.requireOwnerId(httpRequest);
         ChatRequest request = clientJson.parse(raw, properties.getChat().getMaxRequestBytes(), ChatRequest.class);
         String requestId = clientJson.requireRequestId(headerId, request.getRequestId());
         request.setRequestId(requestId);
@@ -71,8 +76,9 @@ public class ClientChatController {
 
     @PostMapping("/chat/{generationId}/stop")
     public ResponseEntity<StopResponse> stop(@PathVariable String generationId,
-                                             @RequestBody(required = false) String raw) {
-        Integer userId = UserContextUtil.getCurrentUserId();
+                                             @RequestBody(required = false) String raw,
+                                             HttpServletRequest httpRequest) {
+        Integer userId = identityService.requireOwnerId(httpRequest);
         StopResponse response = chatService.stop(userId, generationId);
         return ResponseEntity.ok()
                 .header("Cache-Control", "no-store")
@@ -80,8 +86,9 @@ public class ClientChatController {
     }
 
     @GetMapping("/requests/{requestId}")
-    public ResponseEntity<RequestStatusResponse> status(@PathVariable String requestId) {
-        Integer userId = UserContextUtil.getCurrentUserId();
+    public ResponseEntity<RequestStatusResponse> status(@PathVariable String requestId,
+                                                        HttpServletRequest httpRequest) {
+        Integer userId = identityService.requireOwnerId(httpRequest);
         RequestStatusResponse response = chatService.status(userId, requestId);
         return ResponseEntity.ok()
                 .header("Cache-Control", "no-store")

@@ -446,7 +446,7 @@ fetch(url, { headers: { 'X-License': storedLicenseKey, 'Authorization': `Bearer 
 
 | 项目 | 说明 |
 |------|------|
-| 认证 | `Authorization: Bearer <JWT>` |
+| 认证 | 免 JWT 接口无需 `Authorization`；其余接口使用 `Authorization: Bearer <JWT>` |
 | License | 生成类接口需 `X-License: <licenseKey>`；`capabilities`、`requests`、`image-jobs`、`media`、`chat/{id}/stop` 豁免 |
 | 请求 ID | `X-Request-ID` 或请求体 `requestId`；同一 ID + 相同参数重放首次结果，参数不同返回 409 `REQUEST_CONFLICT` |
 | 缓存 | 所有客户端响应带 `Cache-Control: no-store`；对话/合成等成功响应可能带 `X-Config-Version` |
@@ -456,11 +456,28 @@ fetch(url, { headers: { 'X-License': storedLicenseKey, 'Authorization': `Bearer 
 `license.enforce=false`（dev 联调）时可不带 `X-License`。`capabilities` 在无有效 License
 或未配置供应商密钥时对应能力 `available=false`。
 
+免 JWT 接口：
+
+| 方法 | 路径 | 免 JWT |
+|------|------|--------|
+| GET | `/capabilities` | 是 |
+| POST | `/chat/completions` | 是 |
+| POST | `/chat/{generationId}/stop` | 是 |
+| GET | `/requests/{requestId}` | 是 |
+| POST | `/voice/recognize`、`/voice/synthesize` | 是 |
+| GET | `/media/{id}` | 是 |
+| POST | `/embeddings`（`textType=query`） | 是 |
+| POST | `/embeddings`（`textType=document`） | 否 |
+| POST | `/avatar/generate`、GET/DELETE `/image-jobs/{id}` | 否 |
+
+未登录调用按固定匿名归属保存请求与媒体，因此匿名 `requestId` 必须全局唯一且不可预测；生成类接口在
+`license.enforce=true` 时仍要求 `X-License`。
+
 ### 接口
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/capabilities` | 能力与版本；登录即可访问 |
+| GET | `/capabilities` | 能力与版本；游客可访问 |
 | POST | `/chat/completions` | 对话（SSE 或 JSON）、摘要 |
 | POST | `/chat/{generationId}/stop` | 停止同一生成组 |
 | GET | `/requests/{requestId}` | 统一恢复查询 |
@@ -478,7 +495,7 @@ fetch(url, { headers: { 'X-License': storedLicenseKey, 'Authorization': `Bearer 
 
 ```http
 GET /capabilities
-Authorization: Bearer <token>
+# Authorization: Bearer <token>（可选；游客可省略）
 X-License: ATW1...
 ```
 
@@ -539,7 +556,7 @@ data:[DONE]
 
 ```http
 GET /requests/req-chat-001
-Authorization: Bearer <token>
+# Authorization: Bearer <token>（可选；游客可省略）
 ```
 
 ```json
@@ -548,7 +565,7 @@ Authorization: Bearer <token>
 
 ```http
 POST /chat/gen-001/stop
-Authorization: Bearer <token>
+# Authorization: Bearer <token>（可选；游客可省略）
 ```
 
 ### 3. 语音识别（ASR）
@@ -557,7 +574,7 @@ Authorization: Bearer <token>
 
 ```http
 POST /voice/recognize
-Authorization: Bearer <token>
+# Authorization: Bearer <token>（可选；游客可省略）
 Content-Type: audio/wav
 X-Request-ID: req-asr-001
 
@@ -659,13 +676,14 @@ X-Request-ID: req-asr-001
 }
 ```
 
-`textType` 为 `document` 或 `query`；单次最多 10 段，每段最多 4000 字符。
+`textType` 为 `document` 或 `query`；单次最多 10 段，每段最多 4000 字符。`query` 可免 JWT
+调用，`document` 必须登录。
 
 ### 7. 媒体下载
 
 ```http
 GET /media/<mediaId>
-Authorization: Bearer <token>
+# Authorization: Bearer <token>（可选；游客可省略）
 Range: bytes=0-99
 ```
 
