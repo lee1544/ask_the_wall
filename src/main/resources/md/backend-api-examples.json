@@ -28,6 +28,8 @@
         "synthesisAvailable": true,
         "maxRecordingSeconds": 60,
         "maxTextChars": 32000,
+        "defaultVoice": "Cherry",
+        "voices": ["Cherry", "Serena", "Ethan"],
         "configVersion": "voice-policy-v4",
         "segmentationVersion": "speech-segments-v1",
         "maxRecordingBytes": 1920044
@@ -210,6 +212,7 @@
     "request": {
       "text": "你好！展馆每天上午九点开放。",
       "segmentIndex": 0,
+      "voice": "Cherry",
       "requestId": "req-tts-001-0",
       "expectedConfigVersion": "voice-policy-v4"
     },
@@ -217,6 +220,7 @@
       "url": "/api/v1/client/media/audio-example-001",
       "segmentIndex": 0,
       "segmentCount": 1,
+      "voice": "Cherry",
       "cached": false,
       "configVersion": "voice-policy-v4",
       "expiresAt": "2026-10-20T08:00:00Z"
@@ -2383,6 +2387,7 @@
         "url": "/api/v1/client/media/audio-example-001",
         "segmentIndex": 0,
         "segmentCount": 1,
+        "voice": "Cherry",
         "cached": false,
         "configVersion": "voice-policy-v4",
         "expiresAt": "2026-10-20T08:00:00Z"

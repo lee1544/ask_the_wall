@@ -9,6 +9,7 @@ public class SpeechSynthesizeRequest extends ClientModelRequest {
 
     private String text;
     private Integer segmentIndex;
+    private String voice;
     private String requestId;
     private String expectedConfigVersion;
 }

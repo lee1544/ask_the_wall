@@ -4,6 +4,10 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
 /**
  * 客户端模型接口配置。供应商密钥只存在服务端，不下发客户端。
  */
@@ -62,6 +66,7 @@ public class ClientModelProperties {
     public static class Tts {
         private String model = "qwen3-tts-flash";
         private String voice = "Cherry";
+        private List<String> voices = new ArrayList<>(Arrays.asList("Cherry", "Serena", "Ethan"));
         private String languageType = "Auto";
         private String segmentationVersion = "speech-segments-v1";
         private String configVersion = "voice-policy-v1";

@@ -465,7 +465,7 @@ fetch(url, { headers: { 'X-License': storedLicenseKey, 'Authorization': `Bearer 
 | POST | `/chat/{generationId}/stop` | 停止同一生成组 |
 | GET | `/requests/{requestId}` | 统一恢复查询 |
 | POST | `/voice/recognize` | WAV（PCM16/16kHz/单声道）识别 |
-| POST | `/voice/synthesize` | 按 `segmentIndex` 合成片段 |
+| POST | `/voice/synthesize` | 按 `segmentIndex` 合成片段，可选 `voice` |
 | POST | `/avatar/generate` | 创建头像异步任务（202） |
 | GET | `/image-jobs/{id}` | 查询头像任务 |
 | DELETE | `/image-jobs/{id}` | 取消头像任务 |
@@ -486,7 +486,7 @@ X-License: ATW1...
 {
   "chat": {"available": true, "spaceId": "chat-policy-v1", "contextBudget": 8192, "maxOutputTokens": 1536},
   "image": {"available": true, "configVersion": "image-policy-v1", "maxPromptChars": 3000},
-  "voice": {"available": true, "recognitionAvailable": true, "synthesisAvailable": true, "configVersion": "voice-policy-v1"},
+  "voice": {"available": true, "recognitionAvailable": true, "synthesisAvailable": true, "defaultVoice": "Cherry", "voices": ["Cherry", "Serena", "Ethan"], "configVersion": "voice-policy-v1"},
   "embedding": {"available": true, "spaceId": "embedding-space-v1", "dimensions": 1024}
 }
 ```
@@ -577,6 +577,7 @@ X-Request-ID: req-asr-001
   "requestId": "req-tts-001",
   "text": "你好，欢迎使用。",
   "segmentIndex": 0,
+  "voice": "Cherry",
   "expectedConfigVersion": "voice-policy-v1"
 }
 ```
@@ -586,14 +587,16 @@ X-Request-ID: req-asr-001
   "url": "/api/v1/client/media/<mediaId>",
   "segmentIndex": 0,
   "segmentCount": 1,
+  "voice": "Cherry",
   "cached": false,
   "configVersion": "voice-policy-v1",
   "expiresAt": "2026-10-20T12:00:00Z"
 }
 ```
 
-`segmentIndex` 省略时默认 0；文本会按 `speech-segments-v1` 分段，客户端应按
-`segmentIndex` 逐段取用，不要拼接不同 `configVersion` 的片段。
+`segmentIndex` 省略时默认 0；`voice` 省略时使用 capabilities 的 `defaultVoice`，仅允许
+`voices` 列表中的值（不支持返回 400）。文本会按 `speech-segments-v1` 分段，客户端应按
+`segmentIndex` 逐段取用，不要拼接不同 `configVersion` 或不同音色的片段。
 
 ### 5. 头像
 
@@ -705,6 +708,7 @@ BAILIAN_ORIGIN=https://dashscope.aliyuncs.com
 BAILIAN_ASR_MODEL=qwen3-asr-flash
 BAILIAN_TTS_MODEL=qwen3-tts-flash
 BAILIAN_TTS_VOICE=Cherry
+BAILIAN_TTS_VOICES=Cherry,Serena,Ethan
 BAILIAN_IMAGE_MODEL=wan2.7-image
 BAILIAN_EMBEDDING_MODEL=text-embedding-v4
 CLIENT_MEDIA_DIR=./data/media
@@ -732,7 +736,7 @@ mysql -u root -p ask_the_wall < src/main/resources/static/client_upgrade.sql
 使用真实供应商密钥在 dev profile 下完成过以下联调：
 
 - 对话非流式、SSE 流式、`/requests/{id}` 重放、停止；
-- 向量 1024 维、ASR（16kHz WAV）、TTS 与媒体下载/Range；
+- 向量 1024 维、ASR（16kHz WAV）、TTS（Cherry/Serena）与媒体下载/Range；
 - 头像 202 → `complete`，产物为 2048×2048 PNG；
 - License 缺失/非法 403、有效 License 200，以及豁免接口不带 License 可访问。
 
@@ -744,4 +748,4 @@ mysql -u root -p ask_the_wall < src/main/resources/static/client_upgrade.sql
 - 后端对聊天流设置了 `X-Config-Version` 响应头；客户端刷新能力后可据此判断版本。
 - 临时媒体默认保留 24 小时，`client.media.dir` 需可写；媒体清理任务每 10 分钟运行一次。
 - 对话正文、录音、参考图不长期保存；恢复记录和任务仅保留 24 小时。
-- 服务端只接受官方 OSS `*.oss-*.aliyuncs.com` 下载地址并禁止重定向，不把签名 URL 返回给客户端。
+- 服务端只接受官方 OSS `*.oss-*.aliyuncs.com` 下载地址并禁止重定向，不把签名 URL 返回给客户端；升级为 https 时保留原始路径与查询串，避免破坏 `%2B/%2F/%3D` 签名。

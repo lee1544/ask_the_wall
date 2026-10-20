@@ -101,6 +101,8 @@
     "maxRecordingSeconds": 60,
     "maxRecordingBytes": 1920044,
     "maxTextChars": 32000,
+    "defaultVoice": "Cherry",
+    "voices": ["Cherry", "Serena", "Ethan"],
     "configVersion": "voice-policy-v4",
     "segmentationVersion": "speech-segments-v1"
   },
@@ -115,7 +117,7 @@
 }
 ```
 
-available 综合账号授权、业务启停和配置是否完整；没有权限返回 false，不让客户端猜测。该接口不执行付费模型连通测试，不能保证供应商此刻一定可调用；真实调用失败仍返回安全错误；不能返回演示答案或静默切换未约定的模型来伪装成功。voice.available 表示识别/合成至少一项可用，两个操作分别以 recognitionAvailable/synthesisAvailable 判断，不能仅用总开关误开启已禁用的操作。chat.spaceId 在影响上下文摘要策略的模型/预算变化时更新；用于让客户端判断摘要缓存是否仍适用，不暴露底层模型名称。voice.configVersion 在影响音频内容的模型/音色变化时更新，避免命中旧音色缓存。
+available 综合账号授权、业务启停和配置是否完整；没有权限返回 false，不让客户端猜测。该接口不执行付费模型连通测试，不能保证供应商此刻一定可调用；真实调用失败仍返回安全错误；不能返回演示答案或静默切换未约定的模型来伪装成功。voice.available 表示识别/合成至少一项可用，两个操作分别以 recognitionAvailable/synthesisAvailable 判断，不能仅用总开关误开启已禁用的操作。voice.defaultVoice 与 voice.voices 是服务端允许的音色列表；客户端只能从 voices 中选择，缺省使用 defaultVoice。chat.spaceId 在影响上下文摘要策略的模型/预算变化时更新；用于让客户端判断摘要缓存是否仍适用，不暴露底层模型名称。voice.configVersion 在影响音频内容的模型、音色列表或默认音色变化时更新，避免命中旧音色缓存。
 
 第一期在线调用模式下，/session 和 /capabilities 允许已登录但尚未激活/授权过期的用户访问，返回状态与 available=false，不因缺 License 阻止激活界面初始化。各个生成接口仍独立强制验证授权，available 不能代替鉴权。
 
@@ -255,7 +257,7 @@ operation 枚举 chat/voice-recognize/voice-synthesize/avatar-generate/embedding
 | --- | --- |
 | chat | choices、usage 等非流式完整回答；流式回答也还原为这一结构 |
 | voice-recognize | `{text, requestId}` |
-| voice-synthesize | `{url, segmentIndex, segmentCount, cached, configVersion, expiresAt}` |
+| voice-synthesize | `{url, segmentIndex, segmentCount, voice, cached, configVersion, expiresAt}` |
 | avatar-generate | 原 HTTP 202 的 `{job}`；这里只表示成功创建任务，不表示图片已生成 |
 | embeddings | `{vectors, dimensions, spaceId, usage, requestId}` |
 
@@ -306,13 +308,15 @@ text 为去掉首尾空白的非空字符串，上限 16000 字符。无有效�
 | --- | --- | --- | --- |
 | text | string | 是 | 整条回答，可能含 Markdown，最多 32000 字符 |
 | segmentIndex | integer | 否 | 从 0 开始，默认 0；越界返回 400 |
-| requestId | string | 是 | 当前片段请求的幂等标识 |
+| voice | string | 否 | 来自 capabilities.voice.voices，缺省使用 defaultVoice；不在列表返回 400 |
+| requestId | string | 是 | 当前片段请求的幂等标识；同一 ID 换音色视为不同参数 |
 | expectedConfigVersion | string | 是 | 来自 capabilities.voice.configVersion，防止同一次播放期间切换音色 |
 
 ```json
 {
   "text": "你好！展馆每天上午九点开放。",
   "segmentIndex": 0,
+  "voice": "Cherry",
   "requestId": "req-tts-001-0",
   "expectedConfigVersion": "voice-policy-v4"
 }
@@ -327,17 +331,18 @@ text 为去掉首尾空白的非空字符串，上限 16000 字符。无有效�
   "url": "/api/v1/client/media/audio-example-001",
   "segmentIndex": 0,
   "segmentCount": 1,
+  "voice": "Cherry",
   "cached": false,
   "configVersion": "voice-policy-v4",
   "expiresAt": "2026-10-20T08:00:00Z"
 }
 ```
 
-url 是后端可鉴权下载的临时音频地址；必须只生成本次请求的片段，不预先将整篇全部付费合成。cached 为服务端缓存是否命中。配置版本变化返回 409 CONFIG_CHANGED，不能把不同音色片段拼在一次播放里。后端实际分段和响应中的 segmentCount 在该版本下必须稳定，segmentIndex 不自动取模或夹到最后一段。segmentationVersion 变化也必须改变 configVersion，防止段数和段落顺序变动却被当成同一版本。text 清理后无可读文字返回 422 NO_READABLE_TEXT。
+url 是后端可鉴权下载的临时音频地址；必须只生成本次请求的片段，不预先将整篇全部付费合成。voice 回显本次实际使用的音色；请求未带 voice 时为 defaultVoice。cached 为服务端缓存是否命中，缓存键包含音色。配置版本变化返回 409 CONFIG_CHANGED，不能把不同音色片段拼在一次播放里。后端实际分段和响应中的 segmentCount 在该版本下必须稳定，segmentIndex 不自动取模或夹到最后一段。segmentationVersion 变化也必须改变 configVersion，防止段数和段落顺序变动却被当成同一版本。text 清理后无可读文字返回 422 NO_READABLE_TEXT。
 
 下载输出：完整可解码 WAV，PCM 16-bit，1 或 2 声道；采样率允许 16000/22050/24000/44100/48000 Hz。建议 audio/wav；单段不超过 16 MiB。RIFF/data 长度必须与实际字节一致，如供应商返回 WAV 占位长度，服务端先规范化；具体条件见《模型供应商接入规范》第 5 节。
 
-客户端负责下载、播放和本地缓存。缓存按账号、后端来源、configVersion、分段版本和文本隔离。音色由后端选择，普通请求不得带 voice/model 覆盖。
+客户端负责下载、播放和本地缓存。缓存按账号、后端来源、configVersion、分段版本、音色和文本隔离。普通请求不得带 model 覆盖；voice 只能取 capabilities.voice.voices 中的值。
 
 客户端中止请求时取消上游与下载，停止后不请求下一片段；自动朗读开关继续保存在本地。本期语音接口采用同步请求响应。
 

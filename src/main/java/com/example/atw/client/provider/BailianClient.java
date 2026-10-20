@@ -73,11 +73,11 @@ public class BailianClient {
         return text;
     }
 
-    public byte[] synthesize(String text) {
+    public byte[] synthesize(String text, String voice) {
         long deadline = System.currentTimeMillis() + properties.getTts().getReadTimeoutMs();
         Map<String, Object> input = new LinkedHashMap<>();
         input.put("text", text);
-        input.put("voice", properties.getTts().getVoice());
+        input.put("voice", voice);
         input.put("language_type", properties.getTts().getLanguageType());
 
         Map<String, Object> body = new LinkedHashMap<>();
@@ -93,6 +93,8 @@ public class BailianClient {
                 properties.getBailian().getConnectTimeoutMs(),
                 remainingMs(deadline));
         if (result.getStatus() != 200 || result.getBody() == null) {
+            log.warn("Bailian TTS 下载失败 host={} status={} type={}",
+                    host(secureUrl), result.getStatus(), result.getContentType());
             throw upstream("语音合成结果下载失败");
         }
         return result.getBody();

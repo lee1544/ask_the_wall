@@ -52,6 +52,8 @@ public class ClientCapabilitiesService {
         voice.put("maxRecordingSeconds", 60);
         voice.put("maxRecordingBytes", properties.getAsr().getMaxBytes());
         voice.put("maxTextChars", properties.getTts().getMaxTextChars());
+        voice.put("defaultVoice", properties.getTts().getVoice());
+        voice.put("voices", properties.getTts().getVoices());
         voice.put("configVersion", properties.getTts().getConfigVersion());
         voice.put("segmentationVersion", properties.getTts().getSegmentationVersion());
 

@@ -7,6 +7,7 @@ public class SpeechSynthesizeResponse {
     private String url;
     private int segmentIndex;
     private int segmentCount;
+    private String voice;
     private boolean cached;
     private String configVersion;
     private String expiresAt;
