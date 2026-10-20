@@ -336,12 +336,13 @@ public class ChatService {
 
     private int resolveMaxTokens(ChatRequest request) {
         int upper = properties.getChat().getMaxOutputTokens();
+        int lower = Math.min(properties.getChat().getMinOutputTokens(), upper);
         Integer requested = request.getMaxTokens();
         if (requested != null) {
             if (requested <= 0 || requested > upper) {
                 throw ClientApiException.invalid("max_tokens 必须在 1-" + upper + " 之间");
             }
-            return requested;
+            return Math.max(requested, lower);
         }
         if ("summary".equals(request.getPurpose())) {
             return Math.min(768, upper);

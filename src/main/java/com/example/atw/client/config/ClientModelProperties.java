@@ -47,6 +47,7 @@ public class ClientModelProperties {
         private String spaceId = "chat-policy-v1";
         private int contextBudget = 8192;
         private int reservedOutputTokens = 1536;
+        private int minOutputTokens = 256;
         private int maxOutputTokens = 1536;
         private int maxRequestBytes = 2097152;
         private int maxMessages = 1024;

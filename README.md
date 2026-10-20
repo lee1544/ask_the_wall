@@ -540,7 +540,8 @@ X-License: ATW1...
 ```
 
 约束：`purpose` 为 `answer` 或 `summary`；`summary` 必须非流式；`messages` 第一条必须是
-`system`、最后一条必须是 `user`，最多 1024 条；`max_tokens` 范围 1–1536。
+`system`、最后一条必须是 `user`，最多 1024 条；`max_tokens` 范围 1–1536，低于 256 时后端按
+256 执行。客户端接口时间统一为北京时间，ISO 8601 输出带 `+08:00`。
 
 流式请求将 `stream` 设为 `true`，响应为 `text/event-stream`：
 
@@ -560,7 +561,7 @@ GET /requests/req-chat-001
 ```
 
 ```json
-{"requestId":"req-chat-001","operation":"chat","generationId":"gen-001","state":"completed","httpStatus":200,"result":{...},"expiresAt":"2026-10-20T12:00:00Z"}
+{"requestId":"req-chat-001","operation":"chat","generationId":"gen-001","state":"completed","httpStatus":200,"result":{...},"expiresAt":"2026-10-20T20:00:00+08:00"}
 ```
 
 ```http
@@ -607,7 +608,7 @@ X-Request-ID: req-asr-001
   "voice": "Cherry",
   "cached": false,
   "configVersion": "voice-policy-v1",
-  "expiresAt": "2026-10-20T12:00:00Z"
+  "expiresAt": "2026-10-20T20:00:00+08:00"
 }
 ```
 
@@ -632,7 +633,7 @@ X-Request-ID: req-asr-001
     "id": "job-...",
     "state": "queued",
     "message": "等待生成",
-    "createdAt": "2026-10-19T12:00:00Z",
+    "createdAt": "2026-10-19T20:00:00+08:00",
     "pollAfterMs": 1000
   }
 }

@@ -60,7 +60,7 @@
 
 - 生产环境 HTTPS。除 1.1 节列出的免 JWT 接口外，认证使用 `Authorization: Bearer <accessToken>`，实际凭据由独立后端发放，不能使用供应商 API Key。设备绑定通过服务端会话校验，具体采用第 10 节的激活后绑定 token 方案，不能仅信任裸机器码。客户端内部令牌不能作为远程身份凭据。
 - JSON 成功响应直接返回业务对象，不额外包 `{data: ...}`，以保证统一解析。错误保留字符串 error，同时增加稳定 code。
-- 时间 ISO 8601 UTC。ID 使用不透明字符串；客户端不依赖数据库数值 ID。所有 maxChars 均按 JavaScript UTF-16 code units 计算（emoji 等可能计为两个单位），后端其他语言不能直接按字节限制。空间、配置版本的具体字符串都只是示例，必须当不透明值比较。本期支持的能力仅限本文列出的接口。
+- 时间统一为北京时间（UTC+8），ISO 8601 格式带 `+08:00`。ID 使用不透明字符串；客户端不依赖数据库数值 ID。所有 maxChars 均按 JavaScript UTF-16 code units 计算（emoji 等可能计为两个单位），后端其他语言不能直接按字节限制。空间、配置版本的具体字符串都只是示例，必须当不透明值比较。本期支持的能力仅限本文列出的接口。
 - 请求幂等 requestId 最多 100 字符；JSON 可放请求体，二进制录音使用 `X-Request-ID`。若头和体同时传且不一致，返回 400。
 - 幂等键统一为（userId、requestId），跨本期所有模型接口保持唯一。记录 operation 与规范化请求体摘要；同一 ID 换接口、换参数均返回 409 REQUEST_CONFLICT。处理中重复提交返回 409 REQUEST_IN_PROGRESS；终态重复提交重放既有响应，不再次付费。所有操作都能用 GET /requests/:requestId 恢复，见第 4.5 节。
 - 不自动重试任何可能付费的生成。幂等记录须跨后端重启可用。第一期统一约定：终态请求记录和可恢复结果至少保留至结束后 24 小时；图片/音频成功结果也至少保留至成功后 24 小时。expiresAt 返回实际过期时间，实际保留期不得短于承诺。运行中的任务不得因记录 TTL 提前清除。
@@ -161,9 +161,9 @@ embedding.spaceId 是后端生成的稳定、不透明向量空间标识，在�
 | messages | array | 是 | 按顺序传入 `{role,content}`；role 为 system/user/assistant，content 为纯文本 |
 | stream | boolean | 是 | 普通回答通常为 true，摘要调用为 false；兼容非流式回答 |
 | expectedPolicyVersion | string | 是 | capabilities.chat.spaceId，摘要和该组最终回答使用同一版本 |
-| max_tokens | integer | 否 | 摘要使用 768；最终回答可不传，后端使用配置上限。仅作为预算请求，由后端限额 |
+| max_tokens | integer | 否 | 摘要使用 768；最终回答可不传，后端使用配置上限。仅作为预算请求，低于 256 时后端按 256 执行 |
 
-messages 至少 1 条，最多按 capabilities.chat.maxMessages；content 必须是非空字符串，保留用户原始空白，不把它当 JSON 指令解析。第一条为 system，后续仅 user/assistant，最后一条为本次 user；本期不支持图片 content 数组、tools/function calling。整个 JSON body 不超过 capabilities.chat.maxRequestBytes。max_tokens 存在时是正整数且不超过 maxOutputTokens，超限明确返回 400。
+messages 至少 1 条，最多按 capabilities.chat.maxMessages；content 必须是非空字符串，保留用户原始空白，不把它当 JSON 指令解析。第一条为 system，后续仅 user/assistant，最后一条为本次 user；本期不支持图片 content 数组、tools/function calling。整个 JSON body 不超过 capabilities.chat.maxRequestBytes。max_tokens 存在时是正整数且不超过 maxOutputTokens，超限明确返回 400；低于 256 时按 256 执行，避免模型只返回空内容。
 
 purpose=summary 时 stream 必须为 false，max_tokens 默认 768 且受后端策略上限约束；answer 同时支持 stream=true/false。purpose 只影响分组和额度检查，不能用来选择任意供应商或绕过授权。
 
@@ -267,7 +267,7 @@ data: {"error":"生成失败，请重试。","code":"UPSTREAM_ERROR","requestId"
   },
   "error": null,
   "code": null,
-  "expiresAt": "2026-10-20T08:00:00Z"
+  "expiresAt": "2026-10-20T16:00:00+08:00"
 }
 ```
 
@@ -354,7 +354,7 @@ text 为去掉首尾空白的非空字符串，上限 16000 字符。无有效�
   "voice": "Cherry",
   "cached": false,
   "configVersion": "voice-policy-v4",
-  "expiresAt": "2026-10-20T08:00:00Z"
+  "expiresAt": "2026-10-20T16:00:00+08:00"
 }
 ```
 
@@ -396,7 +396,7 @@ image 是图像内容的 Base64 Data URL，不是本地路径或公网 URL。服
     "id": "image-job-example-001",
     "state": "queued",
     "message": "等待生成",
-    "createdAt": "2026-10-19T08:00:00Z"
+    "createdAt": "2026-10-19T16:00:00+08:00"
   }
 }
 ```
@@ -410,9 +410,9 @@ image 是图像内容的 Base64 Data URL，不是本地路径或公网 URL。服
   "id": "image-job-example-001",
   "state": "complete",
   "message": "形象已生成，请预览并确认使用",
-  "createdAt": "2026-10-19T08:00:00Z",
+  "createdAt": "2026-10-19T16:00:00+08:00",
   "url": "/api/v1/client/media/image-example-001",
-  "expiresAt": "2026-10-20T08:00:00Z"
+  "expiresAt": "2026-10-20T16:00:00+08:00"
 }
 ```
 
@@ -505,9 +505,9 @@ url 推荐返回相对远程 API Origin 的 `/api/v1/client/media/:id`，本地�
 {
   "tokenType": "Bearer",
   "accessToken": "example-access-token-not-a-real-secret",
-  "accessTokenExpiresAt": "2026-10-19T09:00:00Z",
+  "accessTokenExpiresAt": "2026-10-19T17:00:00+08:00",
   "refreshToken": "example-refresh-token-not-a-real-secret",
-  "refreshTokenExpiresAt": "2026-11-18T08:00:00Z",
+  "refreshTokenExpiresAt": "2026-11-18T16:00:00+08:00",
   "user": {"id": "user-example-001", "displayName": "示例用户"},
   "activationId": null
 }
@@ -530,10 +530,10 @@ url 推荐返回相对远程 API Origin 的 `/api/v1/client/media/:id`，本地�
   "deviceAuthorization": {
     "activationId": "activation-example-001",
     "status": "active",
-    "refreshAfter": "2026-10-19T08:30:00Z",
+    "refreshAfter": "2026-10-19T16:30:00+08:00",
     "offlineUntil": null
   },
-  "serverTime": "2026-10-19T08:00:00Z"
+  "serverTime": "2026-10-19T16:00:00+08:00"
 }
 ```
 

@@ -61,6 +61,9 @@ public class AuthService {
     }
     
     public UserInfo getUserInfo(Integer userId) {
+        if (userId == null) {
+            throw new UnauthorizedException("用户未登录");
+        }
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new NotFoundException("用户不存在"));
         boolean isFirstLogin = user.getLastLoginTime() == null;

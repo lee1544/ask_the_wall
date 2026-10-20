@@ -186,7 +186,7 @@
           }
         ]
       },
-      "expiresAt": "2026-10-20T08:00:00Z",
+      "expiresAt": "2026-10-20T16:00:00+08:00",
       "operation": "chat",
       "httpStatus": 200,
       "error": null,
@@ -223,7 +223,7 @@
       "voice": "Cherry",
       "cached": false,
       "configVersion": "voice-policy-v4",
-      "expiresAt": "2026-10-20T08:00:00Z"
+      "expiresAt": "2026-10-20T16:00:00+08:00"
     }
   },
   "avatar": {
@@ -239,7 +239,7 @@
         "id": "image-job-example-001",
         "state": "queued",
         "message": "等待生成",
-        "createdAt": "2026-10-19T08:00:00Z"
+        "createdAt": "2026-10-19T16:00:00+08:00"
       }
     }
   },
@@ -250,9 +250,9 @@
       "id": "image-job-example-001",
       "state": "complete",
       "message": "形象已生成，请预览并确认使用",
-      "createdAt": "2026-10-19T08:00:00Z",
+      "createdAt": "2026-10-19T16:00:00+08:00",
       "url": "/api/v1/client/media/image-example-001",
-      "expiresAt": "2026-10-20T08:00:00Z"
+      "expiresAt": "2026-10-20T16:00:00+08:00"
     }
   },
   "imageCancel": {
@@ -262,7 +262,7 @@
       "id": "image-job-example-001",
       "state": "cancelled",
       "message": "已停止等待；已提交的云端调用可能仍产生费用。",
-      "createdAt": "2026-10-19T08:00:00Z"
+      "createdAt": "2026-10-19T16:00:00+08:00"
     }
   },
   "embeddings": {
@@ -2372,7 +2372,7 @@
       },
       "error": null,
       "code": null,
-      "expiresAt": "2026-10-20T08:00:00Z"
+      "expiresAt": "2026-10-20T16:00:00+08:00"
     }
   },
   "synthesisRecovery": {
@@ -2390,11 +2390,11 @@
         "voice": "Cherry",
         "cached": false,
         "configVersion": "voice-policy-v4",
-        "expiresAt": "2026-10-20T08:00:00Z"
+        "expiresAt": "2026-10-20T16:00:00+08:00"
       },
       "error": null,
       "code": null,
-      "expiresAt": "2026-10-20T08:00:00Z"
+      "expiresAt": "2026-10-20T16:00:00+08:00"
     }
   },
   "avatarRecovery": {
@@ -2410,12 +2410,12 @@
           "id": "image-job-example-001",
           "state": "queued",
           "message": "等待生成",
-          "createdAt": "2026-10-19T08:00:00Z"
+          "createdAt": "2026-10-19T16:00:00+08:00"
         }
       },
       "error": null,
       "code": null,
-      "expiresAt": "2026-10-20T08:00:00Z"
+      "expiresAt": "2026-10-20T16:00:00+08:00"
     }
   },
   "embeddingRecovery": {
@@ -4490,7 +4490,7 @@
       },
       "error": null,
       "code": null,
-      "expiresAt": "2026-10-20T08:00:00Z"
+      "expiresAt": "2026-10-20T16:00:00+08:00"
     }
   },
   "login": {
@@ -4506,9 +4506,9 @@
     "response": {
       "tokenType": "Bearer",
       "accessToken": "example-access-token-not-a-real-secret",
-      "accessTokenExpiresAt": "2026-10-19T09:00:00Z",
+      "accessTokenExpiresAt": "2026-10-19T17:00:00+08:00",
       "refreshToken": "example-refresh-token-not-a-real-secret",
-      "refreshTokenExpiresAt": "2026-11-18T08:00:00Z",
+      "refreshTokenExpiresAt": "2026-11-18T16:00:00+08:00",
       "user": {
         "id": "user-example-001",
         "displayName": "示例用户"
@@ -4525,9 +4525,9 @@
     "response": {
       "tokenType": "Bearer",
       "accessToken": "example-rotated-access-token-not-a-real-secret",
-      "accessTokenExpiresAt": "2026-10-19T09:00:00Z",
+      "accessTokenExpiresAt": "2026-10-19T17:00:00+08:00",
       "refreshToken": "example-rotated-refresh-token-not-a-real-secret",
-      "refreshTokenExpiresAt": "2026-11-18T08:00:00Z",
+      "refreshTokenExpiresAt": "2026-11-18T16:00:00+08:00",
       "user": {
         "id": "user-example-001",
         "displayName": "示例用户"
@@ -4569,10 +4569,10 @@
       "deviceAuthorization": {
         "activationId": "activation-example-001",
         "status": "active",
-        "refreshAfter": "2026-10-19T08:30:00Z",
+        "refreshAfter": "2026-10-19T16:30:00+08:00",
         "offlineUntil": null
       },
-      "serverTime": "2026-10-19T08:00:00Z"
+      "serverTime": "2026-10-19T16:00:00+08:00"
     }
   },
   "redeem": {
@@ -4612,9 +4612,9 @@
     "response": {
       "tokenType": "Bearer",
       "accessToken": "example-bound-access-token-not-a-real-secret",
-      "accessTokenExpiresAt": "2026-10-19T09:00:00Z",
+      "accessTokenExpiresAt": "2026-10-19T17:00:00+08:00",
       "refreshToken": "example-bound-refresh-token-not-a-real-secret",
-      "refreshTokenExpiresAt": "2026-11-18T08:00:00Z",
+      "refreshTokenExpiresAt": "2026-11-18T16:00:00+08:00",
       "user": {
         "id": "user-example-001",
         "displayName": "示例用户"
@@ -4630,7 +4630,7 @@
       "deviceAuthorization": {
         "activationId": "activation-example-001",
         "status": "active",
-        "refreshAfter": "2026-10-19T08:30:00Z",
+        "refreshAfter": "2026-10-19T16:30:00+08:00",
         "offlineUntil": null
       }
     }
@@ -4670,7 +4670,7 @@
       "result": null,
       "error": "向量生成超时，请重试。",
       "code": "UPSTREAM_TIMEOUT",
-      "expiresAt": "2026-10-20T08:00:00Z"
+      "expiresAt": "2026-10-20T16:00:00+08:00"
     }
   },
   "chatPolicyChanged": {
@@ -4697,7 +4697,7 @@
       "state": "error",
       "message": "形象生成失败，请重试。",
       "error": "形象生成失败，请重试。",
-      "createdAt": "2026-10-19T08:00:00Z",
+      "createdAt": "2026-10-19T16:00:00+08:00",
       "code": "UPSTREAM_ERROR"
     }
   },
