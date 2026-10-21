@@ -74,18 +74,16 @@
   }
 
   function applyPageAccess(permission) {
-    if (!permission || can(permission)) {
-      return true;
-    }
+    var allowed = !permission || can(permission);
     var denied = el('pageDenied');
     var content = el('pageContent');
     if (denied) {
-      denied.hidden = false;
+      denied.hidden = allowed;
     }
     if (content) {
-      content.hidden = true;
+      content.hidden = !allowed;
     }
-    return false;
+    return allowed;
   }
 
   function toggleSidebar() {
@@ -142,6 +140,24 @@
     });
   }
 
+  function refreshUserInfo(pagePermission) {
+    return ATW.api('/api/auth/userinfo', { timeout: 10000 }).then(function (fresh) {
+      if (!fresh) {
+        return null;
+      }
+      ATW.saveUser(fresh);
+      applyUser(fresh);
+      applyPermissionVisibility(document);
+      applyPageAccess(pagePermission);
+      return fresh;
+    }, function (error) {
+      if (error.status !== 401) {
+        ATW.toast(error.message || '无法获取账号信息', 'error');
+      }
+      return null;
+    });
+  }
+
   async function init(options) {
     var config = options || {};
     if (!ATW.getToken()) {
@@ -152,22 +168,17 @@
     bindChrome();
 
     var user = ATW.getUser();
-    if (user) {
+    if (user && (!config.permission || can(config.permission))) {
       applyUser(user);
+      applyPermissionVisibility(document);
+      applyPageAccess(config.permission);
+      refreshUserInfo(config.permission);
+      return user;
     }
 
-    try {
-      var fresh = await ATW.api('/api/auth/userinfo', { timeout: 10000 });
-      if (fresh) {
-        user = fresh;
-        ATW.saveUser(user);
-        applyUser(user);
-      }
-    } catch (e) {
-      if (e.status === 401) {
-        return null;
-      }
-      ATW.toast(e.message || '无法获取账号信息', 'error');
+    var fresh = await refreshUserInfo(config.permission);
+    if (fresh) {
+      user = fresh;
     }
 
     if (!user) {

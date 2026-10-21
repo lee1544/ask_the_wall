@@ -20,6 +20,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -63,11 +65,60 @@ public class UserService {
         return userRepository.save(user);
     }
 
-    public Page<User> getUsersByOrgId(Integer orgId, String realName, Integer status, Pageable pageable) {
+    public Page<User> getUsersByOrgId(Integer orgId, String realName, Integer status,
+                                      Pageable pageable, boolean includeRoles) {
         Page<User> userPage = userRepository.findByOrgIdAndRealname(orgId, realName, status, pageable);
         String orgName = organizationService.getOrgNameById(orgId);
         userPage.forEach(user -> user.setOrgName(orgName));
+        if (includeRoles) {
+            fillRoleSummaries(userPage.getContent());
+        }
         return userPage;
+    }
+
+    private void fillRoleSummaries(List<User> users) {
+        if (users == null || users.isEmpty()) {
+            return;
+        }
+
+        List<Integer> userIds = new ArrayList<>();
+        for (User user : users) {
+            userIds.add(user.getId());
+        }
+        List<UserRole> links = userRoleRepository.findByUserIdIn(userIds);
+        if (links.isEmpty()) {
+            users.forEach(user -> {
+                user.setRoleIds(Collections.emptyList());
+                user.setRoleNames(Collections.emptyList());
+            });
+            return;
+        }
+
+        List<Integer> roleIds = new ArrayList<>();
+        for (UserRole link : links) {
+            roleIds.add(link.getRoleId());
+        }
+        Map<Integer, String> roleNameMap = new HashMap<>();
+        for (Role role : roleRepository.findAllById(roleIds)) {
+            roleNameMap.put(role.getId(), role.getRoleName());
+        }
+
+        Map<Integer, List<Integer>> roleIdsByUser = new HashMap<>();
+        Map<Integer, List<String>> roleNamesByUser = new HashMap<>();
+        for (UserRole link : links) {
+            roleIdsByUser.computeIfAbsent(link.getUserId(), key -> new ArrayList<>())
+                    .add(link.getRoleId());
+            String roleName = roleNameMap.get(link.getRoleId());
+            if (roleName != null) {
+                roleNamesByUser.computeIfAbsent(link.getUserId(), key -> new ArrayList<>())
+                        .add(roleName);
+            }
+        }
+
+        for (User user : users) {
+            user.setRoleIds(roleIdsByUser.getOrDefault(user.getId(), Collections.emptyList()));
+            user.setRoleNames(roleNamesByUser.getOrDefault(user.getId(), Collections.emptyList()));
+        }
     }
 
     public User getUsersById(Integer userId) {

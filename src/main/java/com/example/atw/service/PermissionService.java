@@ -12,9 +12,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -116,6 +119,34 @@ public class PermissionService {
 
     public List<Permission> getPermissionsByRoleId(Integer roleId) {
         return permissionRepository.findAllByRoleId(roleId);
+    }
+
+    public Map<Integer, List<Permission>> getPermissionsByRoleIds(List<Integer> roleIds) {
+        if (roleIds == null || roleIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        List<RolePermission> links = rolePermissionRepository.findByRoleIdIn(roleIds);
+        if (links.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        List<Integer> permissionIds = links.stream()
+                .map(RolePermission::getPermissionId)
+                .distinct()
+                .collect(Collectors.toList());
+        Map<Integer, Permission> permissionMap = permissionRepository.findAllById(permissionIds).stream()
+                .collect(Collectors.toMap(Permission::getId, permission -> permission));
+
+        Map<Integer, List<Permission>> result = new HashMap<>();
+        for (RolePermission link : links) {
+            Permission permission = permissionMap.get(link.getPermissionId());
+            if (permission == null) {
+                continue;
+            }
+            result.computeIfAbsent(link.getRoleId(), key -> new ArrayList<>()).add(permission);
+        }
+        return result;
     }
 
     @Transactional

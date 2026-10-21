@@ -14,7 +14,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -34,7 +36,16 @@ public class RoleService {
     
     public List<Role> getRolesByOrgId(Integer orgId) {
         List<Role> roles = roleRepository.findByOrgId(orgId);
-        roles.forEach(role -> role.setPermissions(permissionService.getPermissionsByRoleId(role.getId())));
+        if (roles.isEmpty()) {
+            return roles;
+        }
+
+        List<Integer> roleIds = roles.stream()
+                .map(Role::getId)
+                .collect(Collectors.toList());
+        Map<Integer, List<Permission>> permissionMap = permissionService.getPermissionsByRoleIds(roleIds);
+        roles.forEach(role -> role.setPermissions(
+                permissionMap.getOrDefault(role.getId(), Collections.emptyList())));
         return roles;
     }
     

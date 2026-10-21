@@ -5,6 +5,7 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import javax.servlet.http.HttpServletRequest;
+import java.util.List;
 
 public class UserContextUtil {
     
@@ -39,6 +40,16 @@ public class UserContextUtil {
         HttpServletRequest request = getCurrentRequest();
         Boolean isDevBypass = (Boolean) request.getAttribute("isDevBypass");
         return isDevBypass != null && isDevBypass;
+    }
+
+    @SuppressWarnings("unchecked")
+    public static boolean hasCurrentPermission(String permission) {
+        if (isDevBypass()) {
+            return true;
+        }
+        HttpServletRequest request = getCurrentRequest();
+        List<String> permissions = (List<String>) request.getAttribute("userPermissions");
+        return permissions != null && permissions.contains(permission);
     }
     
     private static HttpServletRequest getCurrentRequest() {

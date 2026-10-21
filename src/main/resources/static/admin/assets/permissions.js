@@ -69,20 +69,35 @@
 
   async function loadAll() {
     el('listSummary').textContent = '加载中...';
-    try {
-      var permissions = await ATW.api('/api/permissions');
-      state.permissions = Array.isArray(permissions) ? permissions : [];
-    } catch (e) {
+    var permissionsRequest = ATW.api('/api/permissions').then(
+      function (data) {
+        return { data: data };
+      },
+      function (error) {
+        return { error: error };
+      }
+    );
+    var rolesRequest = ATW.api('/api/roles').then(
+      function (data) {
+        return { data: data };
+      },
+      function (error) {
+        return { error: error };
+      }
+    );
+    var results = await Promise.all([permissionsRequest, rolesRequest]);
+
+    var permissionsResult = results[0];
+    if (permissionsResult.error) {
       state.permissions = [];
-      renderError(e.message);
+      state.roles = [];
+      renderError(permissionsResult.error.message);
       return;
     }
-    try {
-      var roles = await ATW.api('/api/roles');
-      state.roles = Array.isArray(roles) ? roles : [];
-    } catch (e) {
-      state.roles = [];
-    }
+    state.permissions = Array.isArray(permissionsResult.data) ? permissionsResult.data : [];
+
+    var rolesResult = results[1];
+    state.roles = !rolesResult.error && Array.isArray(rolesResult.data) ? rolesResult.data : [];
     renderTable();
   }
 

@@ -82,24 +82,39 @@
 
   async function loadAll() {
     el('listSummary').textContent = '加载中...';
-    var rolesOk = true;
-    try {
-      var roles = await ATW.api('/api/roles');
-      state.roles = Array.isArray(roles) ? roles : [];
-    } catch (e) {
-      rolesOk = false;
-      state.roles = [];
-      renderError(e.message);
-    }
-    try {
-      var permissions = await ATW.api('/api/permissions');
-      state.permissions = Array.isArray(permissions) ? permissions : [];
-    } catch (e) {
-      state.permissions = [];
-      if (rolesOk) {
-        ATW.toast('权限列表加载失败：' + e.message, 'error');
+    var rolesRequest = ATW.api('/api/roles').then(
+      function (data) {
+        return { data: data };
+      },
+      function (error) {
+        return { error: error };
       }
+    );
+    var permissionsRequest = ATW.api('/api/permissions').then(
+      function (data) {
+        return { data: data };
+      },
+      function (error) {
+        return { error: error };
+      }
+    );
+    var results = await Promise.all([rolesRequest, permissionsRequest]);
+
+    var rolesResult = results[0];
+    var rolesOk = !rolesResult.error;
+    state.roles = rolesOk && Array.isArray(rolesResult.data) ? rolesResult.data : [];
+    if (!rolesOk) {
+      renderError(rolesResult.error.message);
     }
+
+    var permissionsResult = results[1];
+    state.permissions = !permissionsResult.error && Array.isArray(permissionsResult.data)
+      ? permissionsResult.data
+      : [];
+    if (permissionsResult.error && rolesOk) {
+      ATW.toast('权限列表加载失败：' + permissionsResult.error.message, 'error');
+    }
+
     if (rolesOk) {
       renderTable();
     }

@@ -123,7 +123,7 @@ class UserServiceTest {
         when(userRepository.findByOrgIdAndRealname(eq(1), anyString(), isNull(), eq(pageRequest))).thenReturn(userPage);
         when(organizationService.getOrgNameById(1)).thenReturn("测试组织");
 
-        Page<User> result = userService.getUsersByOrgId(1, "", null, pageRequest);
+        Page<User> result = userService.getUsersByOrgId(1, "", null, pageRequest, true);
 
         assertNotNull(result);
         assertEquals(1, result.getContent().size());
@@ -137,7 +137,7 @@ class UserServiceTest {
 
         when(userRepository.findByOrgIdAndRealname(eq(999), anyString(), isNull(), eq(pageRequest))).thenReturn(emptyPage);
 
-        Page<User> result = userService.getUsersByOrgId(999, "", null, pageRequest);
+        Page<User> result = userService.getUsersByOrgId(999, "", null, pageRequest, true);
 
         assertNotNull(result);
         assertTrue(result.getContent().isEmpty());

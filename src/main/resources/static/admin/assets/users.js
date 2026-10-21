@@ -141,9 +141,11 @@
         state.page -= 1;
         return loadList();
       }
-      if (canRoleView && state.items.length > 0) {
-        await loadUserRoleIds();
-      }
+      state.items.forEach(function (user) {
+        if (Array.isArray(user.roleIds)) {
+          state.roleMap[user.id] = user.roleIds;
+        }
+      });
       renderTable();
       renderPager();
     } catch (e) {
@@ -152,19 +154,6 @@
       renderError(e.message);
       renderPager();
     }
-  }
-
-  async function loadUserRoleIds() {
-    var map = {};
-    await Promise.all(state.items.map(async function (user) {
-      try {
-        var ids = await ATW.api('/api/users/' + user.id + '/roles');
-        map[user.id] = Array.isArray(ids) ? ids : [];
-      } catch (e) {
-        map[user.id] = [];
-      }
-    }));
-    state.roleMap = map;
   }
 
   function renderTable() {
@@ -225,23 +214,15 @@
     if (!canRoleView) {
       return '<span class="muted-value">需要 role:view</span>';
     }
-    var ids = state.roleMap[user.id] || [];
-    if (ids.length === 0) {
+    var names = Array.isArray(user.roleNames) ? user.roleNames : [];
+    if (names.length === 0) {
       return '<span class="muted-value">未分配</span>';
     }
-    var roles = ids.map(function (id) {
-      return state.roles.filter(function (role) {
-        return Number(role.id) === Number(id);
-      })[0];
-    }).filter(Boolean);
-    if (roles.length === 0) {
-      return '<span class="muted-value">未分配</span>';
-    }
-    var visible = roles.slice(0, 2).map(function (role) {
-      return '<span class="role-badge">' + ATW.escapeHtml(role.roleName) + '</span>';
+    var visible = names.slice(0, 2).map(function (name) {
+      return '<span class="role-badge">' + ATW.escapeHtml(name) + '</span>';
     }).join('');
-    if (roles.length > 2) {
-      visible += '<span class="role-badge role-badge-more">+' + (roles.length - 2) + '</span>';
+    if (names.length > 2) {
+      visible += '<span class="role-badge role-badge-more">+' + (names.length - 2) + '</span>';
     }
     return '<span class="badge-list">' + visible + '</span>';
   }
@@ -413,6 +394,13 @@
         body: checked
       });
       state.roleMap[state.roleUser.id] = checked;
+      state.roleUser.roleIds = checked;
+      state.roleUser.roleNames = checked.map(function (roleId) {
+        var role = state.roles.filter(function (item) {
+          return Number(item.id) === Number(roleId);
+        })[0];
+        return role ? role.roleName : null;
+      }).filter(Boolean);
       ATW.toast('角色已更新', 'success');
       AdminPage.closeModal('userRolesModal');
       renderTable();

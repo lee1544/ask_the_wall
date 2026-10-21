@@ -53,7 +53,9 @@ public class UserController {
         Integer orgId = UserContextUtil.getCurrentOrgId();
         Sort sort = Sort.by(Sort.Order.desc("createTime"), Sort.Order.desc("id"));
         PageRequest pageRequest = PageRequest.of(page, size, sort);
-        Page<User> userPage = userService.getUsersByOrgId(orgId, trimToNull(realname), status, pageRequest);
+        boolean includeRoles = UserContextUtil.hasCurrentPermission("role:view");
+        Page<User> userPage = userService.getUsersByOrgId(
+                orgId, trimToNull(realname), status, pageRequest, includeRoles);
 
         return PageResponse.of(
                 userPage.getContent(),

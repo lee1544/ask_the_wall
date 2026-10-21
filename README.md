@@ -250,8 +250,9 @@ X-License: ATW1.xxx.yyy
 - `/admin/permissions.html`：权限管理，查看权限编码、分类、角色引用情况，并启用/禁用权限。
 - `/admin/roles.html`：角色管理，支持创建/编辑/删除角色，以及按权限分组勾选分配权限。
 - `/admin/users.html`：用户管理，支持按姓名/状态筛选、新建、编辑姓名、启停、分配角色、重置密码和删除。
-- 管理页只调用 JWT 鉴权的接口；`/api/license/**` 已由 `LicenseFilter` 豁免
-  `X-License`，因此生成第一批 License 时不需要先持有 License。
+- 管理页只调用 JWT 鉴权的接口；`/api/license/**` 以及后台使用的
+  `/api/users|roles|permissions|organizations/**` 已由 `LicenseFilter` 豁免 `X-License`，
+  因此进入管理后台不需要先持有 License。
 - 静态页面允许匿名加载，页面内的 API 调用仍受 JWT 与 `@RequirePermission` 保护。
 - 导航会按当前账号权限自动隐藏不可访问的模块；接口权限仍以服务端校验为准。
 

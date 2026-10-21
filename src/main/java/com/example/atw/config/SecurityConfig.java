@@ -54,6 +54,23 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http.csrf().disable()
                 .cors().and()
+                .headers()
+                .cacheControl().disable()
+                .addHeaderWriter((request, response) -> {
+                    String uri = request.getRequestURI();
+                    if (uri != null && uri.startsWith("/admin/assets/")) {
+                        response.setHeader("Cache-Control", "public, max-age=300");
+                        return;
+                    }
+                    if (uri != null && (uri.equals("/admin") || uri.startsWith("/admin/"))) {
+                        response.setHeader("Cache-Control", "no-cache");
+                        return;
+                    }
+                    response.setHeader("Cache-Control", "no-cache, no-store, max-age=0, must-revalidate");
+                    response.setHeader("Pragma", "no-cache");
+                    response.setHeader("Expires", "0");
+                })
+                .and()
                 .authorizeRequests()
                 .antMatchers("/admin", "/admin/**", "/favicon.ico").permitAll()
                 .antMatchers("/api/auth/**").permitAll()

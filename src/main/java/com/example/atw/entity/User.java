@@ -6,6 +6,7 @@ import lombok.Data;
 import javax.persistence.*;
 import java.io.Serializable;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @Entity
@@ -39,4 +40,10 @@ public class User implements Serializable {
     
     @Transient
     private String orgName;
+
+    @Transient
+    private List<Integer> roleIds;
+
+    @Transient
+    private List<String> roleNames;
 }

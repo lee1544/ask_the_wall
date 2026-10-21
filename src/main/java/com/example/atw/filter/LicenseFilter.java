@@ -54,8 +54,9 @@ public class LicenseFilter extends OncePerRequestFilter {
             filterChain.doFilter(request, response);
             return;
         }
-        // 认证接口、License 接口与能力查询始终放行（激活前需要用到）
-        if (uri.startsWith("/api/license") || uri.startsWith("/api/auth")
+        // 管理后台接口、认证接口、License 接口与能力查询始终放行
+        if (isAdminApi(uri)
+                || uri.startsWith("/api/license") || uri.startsWith("/api/auth")
                 || uri.startsWith("/api/v1/client/capabilities")
                 // 停止/状态查询/任务查询/临时下载不因 License 自然过期而阻断，仅校验登录身份与归属
                 || uri.startsWith("/api/v1/client/requests/")
@@ -86,6 +87,13 @@ public class LicenseFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private boolean isAdminApi(String uri) {
+        return uri.equals("/api/users") || uri.startsWith("/api/users/")
+                || uri.equals("/api/roles") || uri.startsWith("/api/roles/")
+                || uri.equals("/api/permissions") || uri.startsWith("/api/permissions/")
+                || uri.equals("/api/organizations") || uri.startsWith("/api/organizations/");
     }
 
     private void reject(HttpServletRequest request, HttpServletResponse response,
