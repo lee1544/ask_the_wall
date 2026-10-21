@@ -55,6 +55,7 @@ public class SecurityConfig {
         http.csrf().disable()
                 .cors().and()
                 .authorizeRequests()
+                .antMatchers("/admin", "/admin/**", "/favicon.ico").permitAll()
                 .antMatchers("/api/auth/**").permitAll()
                 .antMatchers("/api/license/activate", "/api/license/verify").permitAll()
                 // 对话/语音/向量查询等接口免 JWT；未登录请求使用固定匿名归属

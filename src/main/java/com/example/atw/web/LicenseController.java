@@ -9,6 +9,7 @@ import com.example.atw.service.LicenseService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.web.bind.annotation.*;
 
 import javax.validation.Valid;
@@ -70,9 +71,12 @@ public class LicenseController {
     public PageResponse<ActivationCode> listCodes(
             @RequestParam(name = "status", required = false) Integer status,
             @RequestParam(name = "batch", required = false) String batch,
+            @RequestParam(name = "keyword", required = false) String keyword,
             @RequestParam(name = "page", defaultValue = "0") int page,
             @RequestParam(name = "size", defaultValue = "10") int size) {
-        Page<ActivationCode> codes = activationCodeService.list(status, batch, PageRequest.of(page, size));
+        Sort sort = Sort.by(Sort.Order.desc("createTime"), Sort.Order.desc("id"));
+        Page<ActivationCode> codes = activationCodeService.list(
+                status, batch, keyword, PageRequest.of(page, size, sort));
         return PageResponse.of(codes.getContent(), codes.getNumber(), codes.getSize(), codes.getTotalElements());
     }
 

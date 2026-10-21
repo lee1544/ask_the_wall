@@ -1,0 +1,329 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex,nofollow">
+  <title>License 管理 | Ask The Wall 管理后台</title>
+  <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./assets/admin.css">
+</head>
+<body class="admin-body">
+  <div class="app-shell">
+    <aside id="sidebar" class="sidebar">
+      <div class="sidebar-brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32" fill="none">
+            <path d="M5 7.5h22M5 16h22M5 24.5h22" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+            <path d="M10.5 7.5v17M21.5 7.5v17" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" opacity=".5"/>
+          </svg>
+        </span>
+        <div>
+          <strong>Ask The Wall</strong>
+          <span>Admin Console</span>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav" aria-label="管理菜单">
+        <a class="nav-item is-active" href="./index.html" aria-current="page">
+          <span class="nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M12 3l7 3v5c0 4.6-3 8.2-7 10-4-1.8-7-5.4-7-10V6l7-3z" stroke="currentColor" stroke-width="1.8"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+          <span>License 管理</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-note">
+        <span class="note-dot" aria-hidden="true"></span>
+        <strong>厂商签发端</strong>
+        <p>激活码在此生成，私钥只保存在服务端。</p>
+      </div>
+
+      <div class="sidebar-user">
+        <span id="userAvatar" class="avatar">A</span>
+        <span class="sidebar-user-meta">
+          <strong id="sidebarUserName">-</strong>
+          <small id="sidebarUserOrg">-</small>
+        </span>
+        <button id="logoutSideBtn" class="icon-btn sidebar-logout" type="button" aria-label="退出登录" title="退出登录">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M9 5H5.5A1.5 1.5 0 004 6.5v11A1.5 1.5 0 005.5 19H9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M14 8l4 4-4 4M18 12H9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+    </aside>
+    <button id="sidebarScrim" class="sidebar-scrim" type="button" aria-label="关闭菜单" hidden></button>
+
+    <div class="main-wrap">
+      <header class="topbar">
+        <button id="menuBtn" class="icon-btn menu-btn" type="button" aria-label="打开菜单">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>
+        <div class="topbar-title">
+          <p class="eyebrow">LICENSE CONSOLE</p>
+          <h1>License 管理</h1>
+        </div>
+        <div class="topbar-actions">
+          <span class="user-chip">
+            <span class="avatar avatar-sm" id="topbarAvatar">A</span>
+            <span class="user-chip-text">
+              <strong id="topbarUserName">-</strong>
+              <small id="topbarUserOrg">-</small>
+            </span>
+          </span>
+          <button id="logoutBtn" class="btn btn-ghost btn-sm" type="button">退出登录</button>
+        </div>
+      </header>
+
+      <main class="content">
+        <div id="noPermission" class="empty-state panel" hidden>
+          <span class="empty-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><rect x="5" y="10" width="14" height="10" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M8 10V7a4 4 0 018 0v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          </span>
+          <h2>没有 License 管理权限</h2>
+          <p>当前账号缺少 <code>license:view-code</code> 或 <code>license:create-code</code> 权限，请联系超级管理员分配角色。</p>
+          <button id="noPermissionLogout" class="btn btn-ghost" type="button">切换账号</button>
+        </div>
+
+        <div id="noViewNotice" class="empty-state panel" hidden>
+          <span class="empty-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="2.6" stroke="currentColor" stroke-width="1.8"/></svg>
+          </span>
+          <h2>当前账号只能生成激活码</h2>
+          <p>这个账号没有 <code>license:view-code</code> 权限，无法查询激活码列表，但可以继续生成新的激活码。</p>
+          <button id="noViewGenerateBtn" class="btn btn-primary" type="button">生成激活码</button>
+        </div>
+
+        <div id="pageBody">
+          <section id="statsGrid" class="stats-grid" aria-label="License 概览">
+            <button class="stat-card" type="button" data-status="">
+              <span class="stat-top">
+                <span class="stat-label">全部激活码</span>
+                <span class="stat-icon stat-icon-blue" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                </span>
+              </span>
+              <strong id="statAll">&mdash;</strong>
+              <span class="stat-hint">点击查看全部</span>
+            </button>
+            <button class="stat-card" type="button" data-status="0">
+              <span class="stat-top">
+                <span class="stat-label">未使用</span>
+                <span class="stat-icon stat-icon-amber" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.8"/><path d="M12 8v5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="16.2" r=".8" fill="currentColor"/></svg>
+                </span>
+              </span>
+              <strong id="statUnused">&mdash;</strong>
+              <span class="stat-hint">等待客户激活</span>
+            </button>
+            <button class="stat-card" type="button" data-status="1">
+              <span class="stat-top">
+                <span class="stat-label">已激活</span>
+                <span class="stat-icon stat-icon-green" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.8"/><path d="M8.5 12.2l2.3 2.3 4.7-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </span>
+              </span>
+              <strong id="statActivated">&mdash;</strong>
+              <span class="stat-hint">已绑定机器</span>
+            </button>
+            <button class="stat-card" type="button" data-status="2">
+              <span class="stat-top">
+                <span class="stat-label">已禁用</span>
+                <span class="stat-icon stat-icon-red" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.8"/><path d="M8.5 8.5l7 7M15.5 8.5l-7 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                </span>
+              </span>
+              <strong id="statDisabled">&mdash;</strong>
+              <span class="stat-hint">License 已吊销</span>
+            </button>
+          </section>
+
+          <section id="listPanel" class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>激活码列表</h2>
+                <p id="listSummary" class="muted">加载中...</p>
+              </div>
+              <div class="panel-actions">
+                <button id="refreshBtn" class="btn btn-ghost btn-sm" type="button">
+                  <svg class="btn-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 11a8 8 0 10-2.3 5.7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M20 5v6h-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  刷新
+                </button>
+                <button id="openGenerateBtn" class="btn btn-primary" type="button">
+                  <svg class="btn-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                  生成激活码
+                </button>
+              </div>
+            </div>
+
+            <form id="filterForm" class="filters">
+              <label class="field compact">
+                <span class="field-label">关键字</span>
+                <input id="keyword" name="keyword" type="search" placeholder="激活码 / 被授权方 / 机器码 / License ID">
+              </label>
+              <label class="field compact">
+                <span class="field-label">状态</span>
+                <select id="status" name="status">
+                  <option value="">全部状态</option>
+                  <option value="0">未使用</option>
+                  <option value="1">已激活</option>
+                  <option value="2">已禁用</option>
+                </select>
+              </label>
+              <label class="field compact">
+                <span class="field-label">批次</span>
+                <input id="batch" name="batch" type="text" placeholder="批次精确匹配">
+              </label>
+              <div class="filter-actions">
+                <button class="btn btn-primary btn-sm" type="submit">查询</button>
+                <button id="resetFilterBtn" class="btn btn-ghost btn-sm" type="button">重置</button>
+              </div>
+            </form>
+
+            <div class="table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>激活码</th>
+                    <th>状态</th>
+                    <th>批次</th>
+                    <th>被授权方</th>
+                    <th>版本</th>
+                    <th>有效期</th>
+                    <th>绑定机器</th>
+                    <th>生成时间</th>
+                    <th class="th-actions">操作</th>
+                  </tr>
+                </thead>
+                <tbody id="codeTableBody"></tbody>
+              </table>
+            </div>
+
+            <div class="table-footer">
+              <div id="pageInfo" class="muted">&mdash;</div>
+              <div class="pager">
+                <select id="pageSize" class="select-compact" aria-label="每页数量">
+                  <option value="10">10 条 / 页</option>
+                  <option value="20">20 条 / 页</option>
+                  <option value="50">50 条 / 页</option>
+                </select>
+                <button id="firstPageBtn" class="btn btn-ghost btn-sm pager-btn" type="button">首页</button>
+                <button id="prevPageBtn" class="btn btn-ghost btn-sm pager-btn" type="button">上一页</button>
+                <span id="pageNumber" class="page-number">0 / 0</span>
+                <button id="nextPageBtn" class="btn btn-ghost btn-sm pager-btn" type="button">下一页</button>
+                <button id="lastPageBtn" class="btn btn-ghost btn-sm pager-btn" type="button">末页</button>
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <div id="generateModal" class="modal" hidden>
+    <div class="modal-card modal-card-wide" role="dialog" aria-modal="true" aria-labelledby="generateTitle">
+      <div class="modal-head">
+        <div>
+          <p class="eyebrow">GENERATE</p>
+          <h2 id="generateTitle">生成激活码</h2>
+          <p class="muted">一次最多生成 500 个，生成后可批量复制或下载。</p>
+        </div>
+        <button class="icon-btn modal-close" type="button" data-close="generateModal" aria-label="关闭">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+
+      <form id="generateForm" novalidate>
+        <div class="form-grid">
+          <label class="field">
+            <span class="field-label">生成数量 <em>*</em></span>
+            <input id="genCount" type="number" min="1" max="500" step="1" value="1" required>
+            <span class="field-hint">1 到 500 个</span>
+          </label>
+          <label class="field">
+            <span class="field-label">批次</span>
+            <input id="genBatch" type="text" maxlength="64" placeholder="例如 2026Q1">
+            <span class="field-hint">便于后续按批次筛选</span>
+          </label>
+          <label class="field">
+            <span class="field-label">被授权方</span>
+            <input id="genLicensee" type="text" maxlength="100" placeholder="例如 XX 公司">
+          </label>
+          <label class="field">
+            <span class="field-label">版本 / 授权类型</span>
+            <input id="genEdition" type="text" maxlength="50" value="standard" list="editionOptions">
+            <datalist id="editionOptions">
+              <option value="standard"></option>
+              <option value="professional"></option>
+              <option value="enterprise"></option>
+            </datalist>
+          </label>
+          <label class="field">
+            <span class="field-label">License 有效天数</span>
+            <input id="genValidDays" type="number" min="0" step="1" placeholder="留空或 0 表示永久">
+          </label>
+          <label class="field">
+            <span class="field-label">激活码截止天数</span>
+            <input id="genDeadlineDays" type="number" min="0" step="1" placeholder="留空或 0 表示不限">
+            <span class="field-hint">自生成之日起计算</span>
+          </label>
+          <label class="field field-full">
+            <span class="field-label">备注</span>
+            <textarea id="genRemark" rows="3" maxlength="255" placeholder="可选，最多 255 个字符"></textarea>
+          </label>
+        </div>
+
+        <div class="modal-foot">
+          <button class="btn btn-ghost" type="button" data-close="generateModal">取消</button>
+          <button id="generateBtn" class="btn btn-primary" type="submit">生成激活码</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="resultModal" class="modal" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="resultTitle">
+      <div class="modal-head">
+        <div>
+          <p class="eyebrow">CREATED</p>
+          <h2 id="resultTitle">生成成功</h2>
+          <p id="resultSummary" class="muted"></p>
+        </div>
+        <button class="icon-btn modal-close" type="button" data-close="resultModal" aria-label="关闭">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <textarea id="generatedCodes" class="code-output" readonly spellcheck="false"></textarea>
+      <div class="modal-foot">
+        <button id="downloadCodesBtn" class="btn btn-ghost" type="button">下载 .txt</button>
+        <button id="copyCodesBtn" class="btn btn-ghost" type="button">复制全部</button>
+        <button class="btn btn-primary" type="button" data-close="resultModal">完成</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="detailModal" class="modal" hidden>
+    <div class="modal-card modal-card-wide" role="dialog" aria-modal="true" aria-labelledby="detailTitle">
+      <div class="modal-head">
+        <div>
+          <p class="eyebrow">DETAIL</p>
+          <h2 id="detailTitle">激活码详情</h2>
+          <p class="muted">License 原文仅在已激活的记录中显示。</p>
+        </div>
+        <button class="icon-btn modal-close" type="button" data-close="detailModal" aria-label="关闭">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <div id="detailBody" class="detail-grid"></div>
+      <div class="modal-foot">
+        <button id="detailToggleBtn" class="btn btn-danger-ghost" type="button" hidden>禁用激活码</button>
+        <span class="modal-foot-spacer"></span>
+        <button class="btn btn-ghost" type="button" data-close="detailModal">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toastRoot" class="toast-root" aria-live="polite"></div>
+
+  <script src="./assets/common.js"></script>
+  <script src="./assets/app.js"></script>
+</body>
+</html>

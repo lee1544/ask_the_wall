@@ -218,7 +218,7 @@ X-License: ATW1.xxx.yyy
 | POST | `/api/license/activate` | 公开 | 输入激活码激活（服务端签发） |
 | POST | `/api/license/verify` | 公开 | 在线校验 License |
 | POST | `/api/license/codes` | `license:create-code` | 批量生成激活码 |
-| GET | `/api/license/codes` | `license:view-code` | 分页查询激活码 |
+| GET | `/api/license/codes` | `license:view-code` | 分页查询激活码（支持 `status`、`batch`、`keyword`，按生成时间倒序） |
 | PUT | `/api/license/codes/{id}/status` | `license:create-code` | 启用/禁用（禁用即吊销） |
 
 激活请求 / 响应：
@@ -235,6 +235,21 @@ X-License: ATW1.xxx.yyy
 ```json
 { "count": 100, "batch": "2026Q1", "licensee": "XX公司", "edition": "standard", "validDays": 365, "deadlineDays": 30 }
 ```
+
+查询参数示例：`GET /api/license/codes?page=0&size=10&status=0&batch=2026Q1&keyword=XX公司`。
+`keyword` 会匹配激活码、被授权方、机器码和 License ID；`batch` 为精确匹配。
+
+### 管理后台页面
+
+启动服务后打开 `http://localhost:8088/admin`（会跳转到登录页），使用具备
+`license:view-code` / `license:create-code` 权限的账号登录。
+
+- `/admin/login.html`：管理员登录页，token 保存在浏览器 `localStorage`，JWT 过期或失效后自动回到登录页。
+- `/admin/index.html`：License 管理工作台，包含概览统计、关键字/状态/批次筛选、分页列表、
+  批量生成激活码、复制/下载激活码、查看详情、启用/禁用（吊销）激活码。
+- 管理页只调用 JWT 鉴权的 `/api/license/**` 接口；这些接口已由 `LicenseFilter` 豁免
+  `X-License`，因此生成第一批 License 时不需要先持有 License。
+- 静态页面允许匿名加载，页面内的 API 调用仍受 JWT 与 `@RequirePermission` 保护。
 
 ### Electron 客户端接入
 

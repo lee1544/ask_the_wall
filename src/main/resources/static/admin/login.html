@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex,nofollow">
+  <title>登录 | Ask The Wall 管理后台</title>
+  <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./assets/admin.css">
+</head>
+<body class="auth-body">
+  <div class="auth-backdrop" aria-hidden="true">
+    <span class="auth-orb auth-orb-a"></span>
+    <span class="auth-orb auth-orb-b"></span>
+    <span class="auth-grid"></span>
+  </div>
+
+  <main class="auth-shell">
+    <section class="auth-intro">
+      <div class="brand-lockup">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32" fill="none">
+            <path d="M5 7.5h22M5 16h22M5 24.5h22" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+            <path d="M10.5 7.5v17M21.5 7.5v17" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" opacity=".5"/>
+          </svg>
+        </span>
+        <div>
+          <strong>Ask The Wall</strong>
+          <span>Admin Console</span>
+        </div>
+      </div>
+
+      <div class="auth-copy">
+        <p class="eyebrow">LICENSE CONTROL</p>
+        <h1>管理授权，<br>从一处开始。</h1>
+        <p>生成激活码、查询授权状态、绑定机器与远程吊销，所有 License 操作集中在同一个管理台。</p>
+      </div>
+
+      <ul class="auth-points">
+        <li>
+          <span class="point-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M12 3l7 3v5c0 4.6-3 8.2-7 10-4-1.8-7-5.4-7-10V6l7-3z" stroke="currentColor" stroke-width="1.8"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+          <span><strong>签名签发</strong><small>RSA 私钥签名，机器码绑定</small></span>
+        </li>
+        <li>
+          <span class="point-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M4 7h16M4 12h16M4 17h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          </span>
+          <span><strong>批量管理</strong><small>按批次生成、筛选与导出</small></span>
+        </li>
+        <li>
+          <span class="point-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M12 21a9 9 0 100-18 9 9 0 000 18z" stroke="currentColor" stroke-width="1.8"/><path d="M12 7v5l3 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          </span>
+          <span><strong>即时吊销</strong><small>禁用激活码后 License 立即失效</small></span>
+        </li>
+      </ul>
+    </section>
+
+    <section class="auth-card">
+      <div class="auth-card-head">
+        <p class="eyebrow">ADMIN LOGIN</p>
+        <h2>登录管理后台</h2>
+        <p>使用具备 License 管理权限的账号登录。</p>
+      </div>
+
+      <div id="loginAlert" class="alert" role="alert" hidden></div>
+
+      <form id="loginForm" novalidate>
+        <label class="field">
+          <span class="field-label">用户名</span>
+          <span class="input-wrap">
+            <span class="input-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M20 21a8 8 0 10-16 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.8"/></svg>
+            </span>
+            <input id="username" name="username" type="text" autocomplete="username" placeholder="请输入用户名" required>
+          </span>
+        </label>
+
+        <label class="field">
+          <span class="field-label">密码</span>
+          <span class="input-wrap">
+            <span class="input-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none"><rect x="4" y="10" width="16" height="10" rx="2.5" stroke="currentColor" stroke-width="1.8"/><path d="M8 10V7a4 4 0 018 0v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            </span>
+            <input id="password" name="password" type="password" autocomplete="current-password" placeholder="请输入密码" required>
+            <button id="togglePassword" class="icon-btn password-toggle" type="button" aria-label="显示密码" title="显示密码">
+              <svg class="eye-open" viewBox="0 0 24 24" fill="none"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="2.6" stroke="currentColor" stroke-width="1.8"/></svg>
+              <svg class="eye-off" viewBox="0 0 24 24" fill="none"><path d="M4 4l16 16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M9.9 5.4A10.8 10.8 0 0112 5.2c6 0 9.5 6.8 9.5 6.8a16.6 16.6 0 01-3.2 3.9M6.4 7.6A16.7 16.7 0 002.5 12S6 18.8 12 18.8c1.4 0 2.7-.3 3.8-.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M9.9 9.9a3 3 0 004.2 4.2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            </button>
+          </span>
+        </label>
+
+        <div class="auth-options">
+          <label class="checkbox">
+            <input id="rememberUsername" type="checkbox">
+            <span>记住用户名</span>
+          </label>
+          <span class="muted">JWT 有效期 7 天</span>
+        </div>
+
+        <button id="loginBtn" class="btn btn-primary btn-block" type="submit">登录</button>
+      </form>
+
+      <p class="auth-foot">仅限授权管理员访问</p>
+    </section>
+  </main>
+
+  <div id="loginLoading" class="auth-loading" hidden>
+    <span class="spinner spinner-light" aria-hidden="true"></span>
+    <span>正在验证登录状态...</span>
+  </div>
+
+  <script src="./assets/common.js"></script>
+  <script src="./assets/login.js"></script>
+</body>
+</html>

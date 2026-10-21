@@ -30,4 +30,16 @@ public interface ActivationCodeRepository extends JpaRepository<ActivationCode, 
     Page<ActivationCode> findByBatch(String batch, Pageable pageable);
 
     Page<ActivationCode> findByStatusAndBatch(Integer status, String batch, Pageable pageable);
+
+    @Query("SELECT a FROM ActivationCode a WHERE " +
+            "(:status IS NULL OR a.status = :status) AND " +
+            "(:batch IS NULL OR a.batch = :batch) AND " +
+            "(:keyword IS NULL OR a.code LIKE CONCAT('%', :keyword, '%') " +
+            "OR a.licensee LIKE CONCAT('%', :keyword, '%') " +
+            "OR a.machineCode LIKE CONCAT('%', :keyword, '%') " +
+            "OR a.licenseId LIKE CONCAT('%', :keyword, '%'))")
+    Page<ActivationCode> search(@Param("status") Integer status,
+                                @Param("batch") String batch,
+                                @Param("keyword") String keyword,
+                                Pageable pageable);
 }

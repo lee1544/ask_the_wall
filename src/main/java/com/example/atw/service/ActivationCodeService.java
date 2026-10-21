@@ -134,18 +134,16 @@ public class ActivationCodeService {
         return toResponse(issued.getLicenseKey(), issued.getPayload());
     }
 
-    public Page<ActivationCode> list(Integer status, String batch, Pageable pageable) {
-        boolean hasBatch = batch != null && !batch.trim().isEmpty();
-        if (status != null && hasBatch) {
-            return activationCodeRepository.findByStatusAndBatch(status, batch.trim(), pageable);
+    public Page<ActivationCode> list(Integer status, String batch, String keyword, Pageable pageable) {
+        return activationCodeRepository.search(status, trimToNull(batch), trimToNull(keyword), pageable);
+    }
+
+    private String trimToNull(String value) {
+        if (value == null) {
+            return null;
         }
-        if (status != null) {
-            return activationCodeRepository.findByStatus(status, pageable);
-        }
-        if (hasBatch) {
-            return activationCodeRepository.findByBatch(batch.trim(), pageable);
-        }
-        return activationCodeRepository.findAll(pageable);
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     @Transactional
