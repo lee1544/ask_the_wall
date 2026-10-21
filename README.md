@@ -20,15 +20,9 @@
 1. 初始化数据库：
 
    ```bash
-   # 全新部署（用户权限 + License + 客户端模型接口表）
+   # 唯一部署脚本：用户权限 + License 激活码 + 客户端模型接口表
+   # 可重复执行；全新部署和已有旧库都执行这一个文件
    mysql -u root -p ask_the_wall < src/main/resources/static/system_init.sql
-   ```
-
-   已有旧库按需执行升级脚本（均可重复执行）：
-
-   ```bash
-   mysql -u root -p ask_the_wall < src/main/resources/static/license_upgrade.sql
-   mysql -u root -p ask_the_wall < src/main/resources/static/client_upgrade.sql
    ```
 
    默认超级管理员：**admin / admin123**。
@@ -135,7 +129,7 @@ src/main/java/com/example/atw
 
 **准备**
 
-1. 建表与权限：新库跑 `src/main/resources/static/system_init.sql`，老库跑 `src/main/resources/static/license_upgrade.sql`（新增 `t_activation_code` 表与 `license:create-code`、`license:view-code` 权限）。
+1. 建表与权限：统一执行 `src/main/resources/static/system_init.sql`（可重复执行，已包含 `t_activation_code` 表与 `license:create-code`、`license:view-code` 权限）。
 2. 后端启动（首次会自动生成密钥对）：
    ```bash
    java -jar target/ask_the_wall-0.0.1-SNAPSHOT.jar --spring.profiles.active=dev
@@ -744,11 +738,10 @@ LICENSE_ENFORCE=true
 新表使用手写 SQL（项目关闭了 Hibernate 自动建表）：
 
 ```bash
-mysql -u root -p ask_the_wall < src/main/resources/static/client_upgrade.sql
+mysql -u root -p ask_the_wall < src/main/resources/static/system_init.sql
 ```
 
-全新部署可直接执行 `system_init.sql`（已包含这些表）。`client_upgrade.sql` 可重复执行。
-客户端表：`t_client_request`、`t_client_media`、`t_client_image_job`。
+`system_init.sql` 是唯一部署脚本，可重复执行，已包含客户端表：`t_client_request`、`t_client_media`、`t_client_image_job`。
 
 ### 本地已验证
 

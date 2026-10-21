@@ -1,6 +1,14 @@
 -- =============================================================
--- Ask The Wall - 用户权限模块数据库初始化脚本
--- 仅包含：组织、用户、角色、权限及其关联表
+-- Ask The Wall - 数据库初始化脚本（唯一部署脚本）
+-- 包含：组织、用户、角色、权限、激活码（License）、客户端模型接口表
+-- 可重复执行；部署时只需执行本文件一次
+-- 已有旧库同样执行本文件即可补齐缺失的表与初始数据
+-- =============================================================
+
+SET NAMES utf8mb4;
+
+-- =============================================================
+-- 一、用户权限模块
 -- =============================================================
 
 -- 1. 组织表
@@ -93,6 +101,10 @@ CREATE TABLE IF NOT EXISTS `t_role_permission`
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4 COMMENT ='角色权限关联表';
 
+-- =============================================================
+-- 二、License 激活码模块
+-- =============================================================
+
 -- 7. 激活码表
 CREATE TABLE IF NOT EXISTS `t_activation_code`
 (
@@ -120,54 +132,11 @@ CREATE TABLE IF NOT EXISTS `t_activation_code`
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4 COMMENT ='激活码表';
 
--- 插入初始权限数据
-INSERT INTO `t_permission` (`permission_code`, `permission_name`, `status`)
-VALUES ('user:view', '查看用户', 1),
-       ('user:create', '创建用户', 1),
-       ('user:update', '更新用户', 1),
-       ('user:delete', '删除用户', 1),
-       ('user:assign-role', '分配角色', 1),
-       ('user:reset-password', '重置密码', 1),
-       ('org:view', '查看组织', 1),
-       ('org:create', '创建组织', 1),
-       ('org:update', '更新组织', 1),
-       ('org:delete', '删除组织', 1),
-       ('role:view', '查看角色', 1),
-       ('role:create', '创建角色', 1),
-       ('role:update', '更新角色', 1),
-       ('role:delete', '删除角色', 1),
-       ('role:assign-permission', '分配权限', 1),
-       ('license:create-code', '生成/管理激活码', 1),
-       ('license:view-code', '查看激活码', 1);
-
--- 插入一个默认组织
-INSERT INTO `t_organization` (`org_code`, `org_name`, `description`, `status`)
-VALUES ('DEFAULT_ORG', '默认组织', '系统默认组织', 1);
-
--- 插入全局超级管理员角色（org_id 为空表示全局角色）
-INSERT INTO `t_role` (`role_code`, `role_name`, `description`, `org_id`, `status`)
-VALUES ('SUPER_ADMIN', '超级管理员', '系统全局超级管理员，可创建组织和分配管理员', NULL, 1);
-
--- 为超级管理员角色分配所有权限
-INSERT INTO `t_role_permission` (`role_id`, `permission_id`)
-SELECT 1, id
-FROM `t_permission`
-WHERE `status` = 1;
-
--- 插入默认超级管理员用户（密码：admin123，使用 BCrypt 加密）
-INSERT INTO `t_user` (`username`, `password`, `real_name`, `org_id`, `status`)
-VALUES ('admin', '$2a$12$ovaL7JxZbkPDkqJdzTjvU.TMD3GRw3IXy3pfGfxrYx8vG23NqlgiK', '超级管理员', 1, 1);
-
--- 为管理员用户分配超级管理员角色
-INSERT INTO `t_user_role` (`user_id`, `role_id`)
-VALUES (1, 1);
-
-
 -- =============================================================
--- 客户端模型接口（/api/v1/client）建表脚本
--- 可重复执行；已存在表不会修改。首次部署请在 system_init.sql 之后执行。
+-- 三、客户端模型接口模块（/api/v1/client）
 -- =============================================================
 
+-- 8. 客户端模型调用幂等与恢复记录
 CREATE TABLE IF NOT EXISTS `t_client_request`
 (
     `id`              BIGINT       NOT NULL AUTO_INCREMENT,
@@ -193,6 +162,7 @@ CREATE TABLE IF NOT EXISTS `t_client_request`
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4 COMMENT ='客户端模型调用幂等与恢复记录';
 
+-- 9. 客户端短期音频/图片资源
 CREATE TABLE IF NOT EXISTS `t_client_media`
 (
     `id`           VARCHAR(64)  NOT NULL,
@@ -211,6 +181,7 @@ CREATE TABLE IF NOT EXISTS `t_client_media`
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4 COMMENT ='客户端短期音频/图片资源';
 
+-- 10. 客户端头像生成任务
 CREATE TABLE IF NOT EXISTS `t_client_image_job`
 (
     `id`              VARCHAR(64)  NOT NULL,
@@ -232,3 +203,63 @@ CREATE TABLE IF NOT EXISTS `t_client_image_job`
     KEY `idx_client_image_job_expires` (`expires_at`)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4 COMMENT ='客户端头像生成任务';
+
+-- =============================================================
+-- 四、初始数据（幂等，可重复执行）
+-- =============================================================
+
+-- 11. 初始权限
+INSERT IGNORE INTO `t_permission` (`permission_code`, `permission_name`, `status`)
+VALUES ('user:view', '查看用户', 1),
+       ('user:create', '创建用户', 1),
+       ('user:update', '更新用户', 1),
+       ('user:delete', '删除用户', 1),
+       ('user:assign-role', '分配角色', 1),
+       ('user:reset-password', '重置密码', 1),
+       ('org:view', '查看组织', 1),
+       ('org:create', '创建组织', 1),
+       ('org:update', '更新组织', 1),
+       ('org:delete', '删除组织', 1),
+       ('role:view', '查看角色', 1),
+       ('role:create', '创建角色', 1),
+       ('role:update', '更新角色', 1),
+       ('role:delete', '删除角色', 1),
+       ('role:assign-permission', '分配权限', 1),
+       ('license:create-code', '生成/管理激活码', 1),
+       ('license:view-code', '查看激活码', 1);
+
+-- 12. 默认组织
+INSERT IGNORE INTO `t_organization` (`org_code`, `org_name`, `description`, `status`)
+VALUES ('DEFAULT_ORG', '默认组织', '系统默认组织', 1);
+
+-- 13. 全局超级管理员角色（org_id 为空表示全局角色）
+-- 注意：MySQL 唯一索引中 NULL 不相等，这里用 NOT EXISTS 防止重复插入
+INSERT INTO `t_role` (`role_code`, `role_name`, `description`, `org_id`, `status`)
+SELECT 'SUPER_ADMIN', '超级管理员', '系统全局超级管理员，可创建组织和分配管理员', NULL, 1
+FROM DUAL
+WHERE NOT EXISTS (SELECT 1
+                  FROM `t_role`
+                  WHERE `role_code` = 'SUPER_ADMIN'
+                    AND `org_id` IS NULL);
+
+-- 14. 为超级管理员角色分配所有启用权限
+INSERT IGNORE INTO `t_role_permission` (`role_id`, `permission_id`)
+SELECT r.`id`, p.`id`
+FROM `t_role` r
+         JOIN `t_permission` p ON p.`status` = 1
+WHERE r.`role_code` = 'SUPER_ADMIN'
+  AND r.`org_id` IS NULL;
+
+-- 15. 默认超级管理员用户（密码：admin123，BCrypt 加密）
+INSERT IGNORE INTO `t_user` (`username`, `password`, `real_name`, `org_id`, `status`)
+SELECT 'admin', '$2a$12$ovaL7JxZbkPDkqJdzTjvU.TMD3GRw3IXy3pfGfxrYx8vG23NqlgiK', '超级管理员', o.`id`, 1
+FROM `t_organization` o
+WHERE o.`org_code` = 'DEFAULT_ORG';
+
+-- 16. 为默认管理员分配超级管理员角色
+INSERT IGNORE INTO `t_user_role` (`user_id`, `role_id`)
+SELECT u.`id`, r.`id`
+FROM `t_user` u
+         JOIN `t_role` r
+              ON r.`role_code` = 'SUPER_ADMIN' AND r.`org_id` IS NULL
+WHERE u.`username` = 'admin';
