@@ -10,6 +10,7 @@ import com.example.atw.service.OrganizationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.web.bind.annotation.*;
 
 import javax.validation.Valid;
@@ -37,9 +38,11 @@ public class OrganizationController {
     @GetMapping
     public PageResponse<Organization> getOrganizations(
             @RequestParam(name = "page", defaultValue = "0") int page,
-            @RequestParam(name = "size", defaultValue = "10") int size) {
-        PageRequest pageRequest = PageRequest.of(page, size);
-        Page<Organization> orgPage = organizationService.getOrganizations(pageRequest);
+            @RequestParam(name = "size", defaultValue = "10") int size,
+            @RequestParam(name = "keyword", required = false) String keyword) {
+        Sort sort = Sort.by(Sort.Order.desc("createTime"), Sort.Order.desc("id"));
+        PageRequest pageRequest = PageRequest.of(page, size, sort);
+        Page<Organization> orgPage = organizationService.getOrganizations(keyword, pageRequest);
 
         return PageResponse.of(
                 orgPage.getContent(),

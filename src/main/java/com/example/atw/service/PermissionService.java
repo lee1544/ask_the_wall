@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -95,9 +96,26 @@ public class PermissionService {
         return permissionRepository.findByStatus(1);
     }
 
+    public List<Permission> getAllPermissions() {
+        return permissionRepository.findAllByOrderByPermissionCodeAsc();
+    }
+
+    @Transactional
+    public Permission updatePermissionStatus(Integer permissionId, Integer status) {
+        if (status == null || (status != 0 && status != 1)) {
+            throw new BusinessException("权限状态只能是 0 或 1");
+        }
+        Permission permission = permissionRepository.findById(permissionId)
+                .orElseThrow(() -> new BusinessException("权限不存在"));
+        permission.setStatus(status);
+        permission.setUpdateTime(LocalDateTime.now());
+        Permission saved = permissionRepository.save(permission);
+        userPermissionCache.evictAll();
+        return saved;
+    }
+
     public List<Permission> getPermissionsByRoleId(Integer roleId) {
-        List<Integer> roleIds = java.util.Collections.singletonList(roleId);
-        return permissionRepository.findByRoleIds(roleIds);
+        return permissionRepository.findAllByRoleId(roleId);
     }
 
     @Transactional

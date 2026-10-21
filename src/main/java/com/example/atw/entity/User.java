@@ -1,5 +1,6 @@
 package com.example.atw.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;
 
 import javax.persistence.*;
@@ -18,6 +19,7 @@ public class User implements Serializable {
     @Column(unique = true, nullable = false, length = 50)
     private String username;
     
+    @JsonIgnore
     @Column(nullable = false)
     private String password;
     

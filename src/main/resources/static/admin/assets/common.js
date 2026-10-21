@@ -305,6 +305,15 @@
     return value.slice(0, length) + '\u2026';
   }
 
+  function escapeHtml(value) {
+    return String(value === null || value === undefined ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
   window.ATW = {
     KEYS: KEYS,
     getToken: getToken,
@@ -323,6 +332,7 @@
     licenseExpiry: licenseExpiry,
     statusMeta: statusMeta,
     initials: initials,
-    shortText: shortText
+    shortText: shortText,
+    escapeHtml: escapeHtml
   };
 })();

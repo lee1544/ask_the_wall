@@ -130,8 +130,9 @@ public class OrganizationService {
                 .orElseThrow(() -> new NotFoundException("组织不存在"));
     }
 
-    public Page<Organization> getOrganizations(Pageable pageable) {
-        return organizationRepository.findAll(pageable);
+    public Page<Organization> getOrganizations(String keyword, Pageable pageable) {
+        String normalized = keyword == null || keyword.trim().isEmpty() ? null : keyword.trim();
+        return organizationRepository.search(normalized, pageable);
     }
 
     @Transactional

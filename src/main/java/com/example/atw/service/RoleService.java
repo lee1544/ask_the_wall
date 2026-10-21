@@ -82,6 +82,9 @@ public class RoleService {
         if (role.getRoleCode().startsWith(SystemConstant.ORG_ADMIN_ROLE_CODE_PREFIX)) {
             throw new BusinessException("组织管理员角色不能删除");
         }
+        if (role.getRoleCode().startsWith(SystemConstant.NORMAL_ADMIN_ROLE_CODE_PREFIX)) {
+            throw new BusinessException("普通管理员角色不能删除");
+        }
         // 在删除角色前先获取拥有该角色的用户，用于后续清除缓存
         List<UserRole> affectedUserRoles = userRoleRepository.findByRoleId(id);
         roleRepository.deleteById(id);

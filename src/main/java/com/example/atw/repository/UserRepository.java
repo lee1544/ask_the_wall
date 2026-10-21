@@ -18,8 +18,13 @@ public interface UserRepository extends JpaRepository<User, Integer> {
 
     boolean existsByUsername(String username);
 
-    @Query("SELECT u FROM User u WHERE u.orgId = :orgId AND (:realname IS NULL OR u.realName LIKE CONCAT('%', :realname, '%'))")
-    Page<User> findByOrgIdAndRealname(@Param("orgId") Integer orgId, @Param("realname") String realname, Pageable pageable);
+    @Query("SELECT u FROM User u WHERE u.orgId = :orgId " +
+            "AND (:realname IS NULL OR u.realName LIKE CONCAT('%', :realname, '%')) " +
+            "AND (:status IS NULL OR u.status = :status)")
+    Page<User> findByOrgIdAndRealname(@Param("orgId") Integer orgId,
+                                      @Param("realname") String realname,
+                                      @Param("status") Integer status,
+                                      Pageable pageable);
 
     List<User> findByOrgId(Integer orgId);
 

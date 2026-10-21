@@ -241,15 +241,19 @@ X-License: ATW1.xxx.yyy
 
 ### 管理后台页面
 
-启动服务后打开 `http://localhost:8088/admin`（会跳转到登录页），使用具备
-`license:view-code` / `license:create-code` 权限的账号登录。
+启动服务后打开 `http://localhost:8088/admin`（会跳转到登录页），使用管理员账号登录。
 
 - `/admin/login.html`：管理员登录页，token 保存在浏览器 `localStorage`，JWT 过期或失效后自动回到登录页。
 - `/admin/index.html`：License 管理工作台，包含概览统计、关键字/状态/批次筛选、分页列表、
   批量生成激活码、复制/下载激活码、查看详情、启用/禁用（吊销）激活码。
-- 管理页只调用 JWT 鉴权的 `/api/license/**` 接口；这些接口已由 `LicenseFilter` 豁免
+- `/admin/organizations.html`：组织管理，支持组织搜索、新建（含初始管理员）、编辑、启停和删除。
+- `/admin/permissions.html`：权限管理，查看权限编码、分类、角色引用情况，并启用/禁用权限。
+- `/admin/roles.html`：角色管理，支持创建/编辑/删除角色，以及按权限分组勾选分配权限。
+- `/admin/users.html`：用户管理，支持按姓名/状态筛选、新建、编辑姓名、启停、分配角色、重置密码和删除。
+- 管理页只调用 JWT 鉴权的接口；`/api/license/**` 已由 `LicenseFilter` 豁免
   `X-License`，因此生成第一批 License 时不需要先持有 License。
 - 静态页面允许匿名加载，页面内的 API 调用仍受 JWT 与 `@RequirePermission` 保护。
+- 导航会按当前账号权限自动隐藏不可访问的模块；接口权限仍以服务端校验为准。
 
 ### Electron 客户端接入
 
@@ -379,13 +383,15 @@ fetch(url, { headers: { 'X-License': storedLicenseKey, 'Authorization': `Bearer 
 
 | 方法 | 路径 | 权限 | 说明 |
 |------|------|------|------|
-| POST | `/api/users` | `user:create` | 在当前组织下创建用户 |
-| GET | `/api/users?page=0&size=10&realname=` | `user:view` | 分页查询（真名模糊） |
+| POST | `/api/users` | `user:create` | 在当前组织下创建用户（不自动分配角色） |
+| GET | `/api/users?page=0&size=10&realname=&status=` | `user:view` | 分页查询（真名模糊、状态筛选） |
 | GET | `/api/users/{id}` | `user:view` | 用户详情 |
+| PUT | `/api/users/{id}` | `user:update` | 更新用户姓名 |
 | PUT | `/api/users/{id}/status?status=1` | `user:update` | 启用/禁用 |
 | PUT | `/api/users/{id}/password` | `user:update` | 修改密码 |
 | PUT | `/api/users/{id}/reset-password` | `user:reset-password` | 重置为初始密码（12345678） |
 | DELETE | `/api/users/{id}` | `user:delete` | 删除用户 |
+| GET | `/api/users/{id}/roles` | `user:view` | 查询用户角色ID列表 |
 | POST | `/api/users/{id}/roles` | `user:assign-role` | 分配角色（角色ID数组） |
 | GET | `/api/users/by_role_code?roleCode=` | 登录即可 | 按角色编码查询用户 |
 
@@ -397,7 +403,7 @@ fetch(url, { headers: { 'X-License': storedLicenseKey, 'Authorization': `Bearer 
 |------|------|------|------|
 | POST | `/api/organizations` | `org:create` | 创建组织（同时创建初始管理员与默认角色） |
 | GET | `/api/organizations/{id}` | `org:view` | 组织详情 |
-| GET | `/api/organizations?page=0&size=10` | `org:view` | 分页列表 |
+| GET | `/api/organizations?page=0&size=10&keyword=` | `org:view` | 分页列表（名称/编码模糊） |
 | PUT | `/api/organizations/{id}` | `org:update` | 更新组织 |
 | DELETE | `/api/organizations/{id}` | `org:delete` | 删除组织（级联清理用户与角色） |
 
@@ -414,6 +420,15 @@ fetch(url, { headers: { 'X-License': storedLicenseKey, 'Authorization': `Bearer 
 | DELETE | `/api/roles/{id}` | `role:delete` | 删除角色 |
 | POST | `/api/roles/{id}/permissions` | `role:assign-permission` | 分配权限（权限ID数组） |
 | GET | `/api/roles/{id}/permissions` | `role:view` | 查询角色权限 |
+
+### 5. 权限管理 (Permissions)
+
+基础路径 `/api/permissions`
+
+| 方法 | 路径 | 权限 | 说明 |
+|------|------|------|------|
+| GET | `/api/permissions` | `role:view` | 当前组织可用权限列表 |
+| PUT | `/api/permissions/{id}/status?status=1` | `role:update` + 超级管理员 | 启用/禁用全局权限，禁用后立即失效 |
 
 ## 权限标识对照表
 
@@ -443,7 +458,7 @@ fetch(url, { headers: { 'X-License': storedLicenseKey, 'Authorization': `Bearer 
 |----------|------|
 | `SUPER_ADMIN` | 全局超级管理员（`org_id` 为 NULL） |
 | `ORG_ADMIN_{orgId}` | 组织管理员，创建组织时自动生成 |
-| `NORMAL_ADMIN_{orgId}` | 普通管理员，新建用户默认绑定 |
+| `NORMAL_ADMIN_{orgId}` | 普通管理员，可选角色；新建用户不自动绑定 |
 
 ## 客户端模型接口（/api/v1/client）
 

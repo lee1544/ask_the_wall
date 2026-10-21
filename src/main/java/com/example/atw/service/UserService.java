@@ -60,19 +60,11 @@ public class UserService {
         user.setStatus(1);
         user.setCreateTime(LocalDateTime.now());
         user.setUpdateTime(LocalDateTime.now());
-        userRepository.save(user);
-
-        //普通管理员角色绑定用户
-        Role normalAdminRole = roleRepository.findByRoleCode(SystemConstant.NORMAL_ADMIN_ROLE_CODE_PREFIX + currentOrgId).orElseThrow(() -> new NotFoundException("普通管理员角色不存在"));
-        UserRole userRole = new UserRole();
-        userRole.setUserId(user.getId());
-        userRole.setRoleId(normalAdminRole.getId());
-        userRoleRepository.save(userRole);
-        return user;
+        return userRepository.save(user);
     }
 
-    public Page<User> getUsersByOrgId(Integer orgId, String realName, Pageable pageable) {
-        Page<User> userPage = userRepository.findByOrgIdAndRealname(orgId, realName, pageable);
+    public Page<User> getUsersByOrgId(Integer orgId, String realName, Integer status, Pageable pageable) {
+        Page<User> userPage = userRepository.findByOrgIdAndRealname(orgId, realName, status, pageable);
         String orgName = organizationService.getOrgNameById(orgId);
         userPage.forEach(user -> user.setOrgName(orgName));
         return userPage;
@@ -136,6 +128,16 @@ public class UserService {
             realNameMap.put(user.getId(), user.getRealName());
         }
         return realNameMap;
+    }
+
+    @Transactional
+    public User updateUserRealName(Integer userId, String realName) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new NotFoundException("用户不存在"));
+
+        user.setRealName(realName);
+        user.setUpdateTime(LocalDateTime.now());
+        return userRepository.save(user);
     }
 
     @Transactional

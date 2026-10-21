@@ -1,6 +1,5 @@
 package com.example.atw;
 
-import com.example.atw.constant.SystemConstant;
 import com.example.atw.dto.CreateUserRequest;
 import com.example.atw.entity.Role;
 import com.example.atw.entity.User;
@@ -17,7 +16,6 @@ import com.example.atw.service.UserService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -59,7 +57,6 @@ class UserServiceTest {
 
     private User testUser;
     private CreateUserRequest createRequest;
-    private Role normalAdminRole;
 
     @BeforeEach
     void setUp() {
@@ -75,11 +72,6 @@ class UserServiceTest {
         createRequest.setUsername("newuser");
         createRequest.setPassword("password123");
         createRequest.setRealName("新用户");
-
-        normalAdminRole = new Role();
-        normalAdminRole.setId(2);
-        normalAdminRole.setRoleCode(SystemConstant.NORMAL_ADMIN_ROLE_CODE_PREFIX + "1");
-        normalAdminRole.setOrgId(1);
     }
 
     // ==================== createUser ====================
@@ -88,8 +80,6 @@ class UserServiceTest {
     void testCreateUser_Success() {
         when(userRepository.existsByUsername("newuser")).thenReturn(false);
         when(passwordEncoder.encode("password123")).thenReturn("encodedPassword");
-        when(roleRepository.findByRoleCode(SystemConstant.NORMAL_ADMIN_ROLE_CODE_PREFIX + "1"))
-                .thenReturn(Optional.of(normalAdminRole));
         // 模拟 JPA save 的回填 ID 行为
         when(userRepository.save(any())).thenAnswer(invocation -> {
             User userArg = invocation.getArgument(0);
@@ -105,12 +95,7 @@ class UserServiceTest {
         assertEquals("newuser", result.getUsername());
         assertEquals(1, result.getOrgId().intValue());
         assertEquals(1, result.getStatus().intValue());
-
-        ArgumentCaptor<UserRole> userRoleCaptor = ArgumentCaptor.forClass(UserRole.class);
-        verify(userRoleRepository).save(userRoleCaptor.capture());
-        UserRole savedUserRole = userRoleCaptor.getValue();
-        assertEquals(1, savedUserRole.getUserId().intValue());
-        assertEquals(2, savedUserRole.getRoleId().intValue());
+        verify(userRoleRepository, never()).save(any());
     }
 
     @Test
@@ -124,17 +109,6 @@ class UserServiceTest {
         verify(userRoleRepository, never()).save(any());
     }
 
-    @Test
-    void testCreateUser_RoleNotFound() {
-        when(userRepository.existsByUsername("newuser")).thenReturn(false);
-        when(passwordEncoder.encode("password123")).thenReturn("encodedPassword");
-        when(roleRepository.findByRoleCode(SystemConstant.NORMAL_ADMIN_ROLE_CODE_PREFIX + "1"))
-                .thenReturn(Optional.empty());
-
-        assertThrows(NotFoundException.class, () ->
-                userService.createUser(1, createRequest));
-    }
-
     // ==================== getUsersByOrgId ====================
 
     @Test
@@ -146,10 +120,10 @@ class UserServiceTest {
         List<User> users = Collections.singletonList(user);
         Page<User> userPage = new PageImpl<>(users, pageRequest, 1);
 
-        when(userRepository.findByOrgIdAndRealname(eq(1), anyString(), eq(pageRequest))).thenReturn(userPage);
+        when(userRepository.findByOrgIdAndRealname(eq(1), anyString(), isNull(), eq(pageRequest))).thenReturn(userPage);
         when(organizationService.getOrgNameById(1)).thenReturn("测试组织");
 
-        Page<User> result = userService.getUsersByOrgId(1, "", pageRequest);
+        Page<User> result = userService.getUsersByOrgId(1, "", null, pageRequest);
 
         assertNotNull(result);
         assertEquals(1, result.getContent().size());
@@ -161,9 +135,9 @@ class UserServiceTest {
         PageRequest pageRequest = PageRequest.of(0, 10);
         Page<User> emptyPage = Page.empty(pageRequest);
 
-        when(userRepository.findByOrgIdAndRealname(eq(999), anyString(), eq(pageRequest))).thenReturn(emptyPage);
+        when(userRepository.findByOrgIdAndRealname(eq(999), anyString(), isNull(), eq(pageRequest))).thenReturn(emptyPage);
 
-        Page<User> result = userService.getUsersByOrgId(999, "", pageRequest);
+        Page<User> result = userService.getUsersByOrgId(999, "", null, pageRequest);
 
         assertNotNull(result);
         assertTrue(result.getContent().isEmpty());

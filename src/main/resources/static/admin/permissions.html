@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex,nofollow">
+  <title>权限管理 | Ask The Wall 管理后台</title>
+  <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./assets/admin.css">
+</head>
+<body class="admin-body">
+  <div class="app-shell">
+    <aside id="sidebar" class="sidebar">
+      <div class="sidebar-brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32" fill="none">
+            <path d="M5 7.5h22M5 16h22M5 24.5h22" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+            <path d="M10.5 7.5v17M21.5 7.5v17" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" opacity=".5"/>
+          </svg>
+        </span>
+        <div>
+          <strong>Ask The Wall</strong>
+          <span>Admin Console</span>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav" aria-label="管理菜单">
+        <p class="sidebar-nav-label">授权</p>
+        <a class="nav-item" href="./index.html" data-any-permission="license:view-code license:create-code">
+          <span class="nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M12 3l7 3v5c0 4.6-3 8.2-7 10-4-1.8-7-5.4-7-10V6l7-3z" stroke="currentColor" stroke-width="1.8"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+          <span>License 管理</span>
+        </a>
+        <p class="sidebar-nav-label">系统管理</p>
+        <a class="nav-item" href="./organizations.html" data-any-permission="org:view">
+          <span class="nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M4 20V8l8-5 8 5v12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 20v-6h6v6M8 10h.01M12 10h.01M16 10h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          </span>
+          <span>组织管理</span>
+        </a>
+        <a class="nav-item is-active" href="./permissions.html" aria-current="page" data-any-permission="role:view">
+          <span class="nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M14.5 9.5a4.5 4.5 0 11-3.2 7.7L4 21.5 2.5 20 4 18.5 2.5 17 5 14.5l1.5 1.5 3-3a4.5 4.5 0 015-3.5z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="16" cy="8" r="1.2" fill="currentColor"/></svg>
+          </span>
+          <span>权限管理</span>
+        </a>
+        <a class="nav-item" href="./roles.html" data-any-permission="role:view">
+          <span class="nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M12 3l2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.5-4.8 2.5.9-5.4-3.9-3.8 5.4-.8L12 3z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+          </span>
+          <span>角色管理</span>
+        </a>
+        <a class="nav-item" href="./users.html" data-any-permission="user:view">
+          <span class="nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="3.5" stroke="currentColor" stroke-width="1.8"/><path d="M5 20c.7-3.4 3.2-5.5 7-5.5s6.3 2.1 7 5.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          </span>
+          <span>用户管理</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-note">
+        <span class="note-dot" aria-hidden="true"></span>
+        <strong>权限由服务端定义</strong>
+        <p>权限为全局配置，仅超级管理员可启用/禁用；禁用会立即影响所有组织。</p>
+      </div>
+
+      <div class="sidebar-user">
+        <span id="userAvatar" class="avatar">A</span>
+        <span class="sidebar-user-meta">
+          <strong id="sidebarUserName">-</strong>
+          <small id="sidebarUserOrg">-</small>
+        </span>
+        <button class="icon-btn sidebar-logout" type="button" aria-label="退出登录" title="退出登录" data-logout>
+          <svg viewBox="0 0 24 24" fill="none"><path d="M9 5H5.5A1.5 1.5 0 004 6.5v11A1.5 1.5 0 005.5 19H9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M14 8l4 4-4 4M18 12H9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+    </aside>
+    <button id="sidebarScrim" class="sidebar-scrim" type="button" aria-label="关闭菜单" hidden></button>
+
+    <div class="main-wrap">
+      <header class="topbar">
+        <button id="menuBtn" class="icon-btn menu-btn" type="button" aria-label="打开菜单">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>
+        <div class="topbar-title">
+          <p class="eyebrow">PERMISSIONS</p>
+          <h1>权限管理</h1>
+        </div>
+        <div class="topbar-actions">
+          <span class="user-chip">
+            <span class="avatar avatar-sm" id="topbarAvatar">A</span>
+            <span class="user-chip-text">
+              <strong id="topbarUserName">-</strong>
+              <small id="topbarUserOrg">-</small>
+            </span>
+          </span>
+          <button class="btn btn-ghost btn-sm" type="button" data-logout>退出登录</button>
+        </div>
+      </header>
+
+      <main class="content">
+        <div id="pageDenied" class="empty-state panel" hidden>
+          <span class="empty-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><rect x="5" y="10" width="14" height="10" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M8 10V7a4 4 0 018 0v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          </span>
+          <h2>没有权限管理权限</h2>
+          <p>当前账号缺少 <code>role:view</code> 权限，请联系本组织管理员调整角色。</p>
+          <button class="btn btn-ghost" type="button" data-logout>切换账号</button>
+        </div>
+
+        <div id="pageContent">
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>权限列表</h2>
+                <p id="listSummary" class="muted">加载中...</p>
+              </div>
+              <div class="panel-actions">
+                <button id="refreshBtn" class="btn btn-ghost btn-sm" type="button">
+                  <svg class="btn-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 11a8 8 0 10-2.3 5.7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M20 5v6h-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  刷新
+                </button>
+              </div>
+            </div>
+
+            <form id="filterForm" class="filters filters-three">
+              <label class="field compact">
+                <span class="field-label">关键字</span>
+                <input id="keyword" type="search" placeholder="权限编码 / 权限名称">
+              </label>
+              <label class="field compact">
+                <span class="field-label">状态</span>
+                <select id="statusFilter">
+                  <option value="">全部状态</option>
+                  <option value="1">启用</option>
+                  <option value="0">禁用</option>
+                </select>
+              </label>
+              <div class="filter-actions">
+                <button class="btn btn-primary btn-sm" type="submit">查询</button>
+                <button id="resetFilterBtn" class="btn btn-ghost btn-sm" type="button">重置</button>
+              </div>
+            </form>
+
+            <div class="table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>权限编码</th>
+                    <th>权限名称</th>
+                    <th>分类</th>
+                    <th>已分配角色</th>
+                    <th>状态</th>
+                    <th>更新时间</th>
+                    <th class="th-actions">操作</th>
+                  </tr>
+                </thead>
+                <tbody id="permissionTableBody"></tbody>
+              </table>
+            </div>
+
+            <div class="table-footer">
+              <div id="pageInfo" class="muted">&mdash;</div>
+              <div class="muted-value">权限为全局配置，仅超级管理员可启用/禁用</div>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <div id="toastRoot" class="toast-root" aria-live="polite"></div>
+
+  <script src="./assets/common.js"></script>
+  <script src="./assets/page.js"></script>
+  <script src="./assets/permissions.js"></script>
+</body>
+</html>

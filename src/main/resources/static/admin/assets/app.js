@@ -220,6 +220,15 @@
 
   function setupPermissions(user) {
     var permissions = Array.isArray(user.permissions) ? user.permissions : [];
+    Array.prototype.forEach.call(document.querySelectorAll('[data-any-permission]'), function (node) {
+      var required = (node.getAttribute('data-any-permission') || '').split(/[\s,]+/).filter(function (item) {
+        return item.length > 0;
+      });
+      var allowed = required.length === 0 || required.some(function (permission) {
+        return permissions.indexOf(permission) !== -1;
+      });
+      node.hidden = !allowed;
+    });
     state.canView = permissions.indexOf('license:view-code') !== -1;
     state.canCreate = permissions.indexOf('license:create-code') !== -1;
 
