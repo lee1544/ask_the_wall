@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -78,6 +79,33 @@ class WavUtilTest {
 
         ClientApiException error = assertThrows(ClientApiException.class,
                 () -> WavUtil.normalizeSynthesized(wav, MAX_BYTES));
+
+        assertEquals(503, error.getStatus());
+        assertEquals(ClientCodes.SERVICE_UNAVAILABLE, error.getCode());
+    }
+
+    @Test
+    void concatenatesSynthesizedAudioInOrder() {
+        byte[] first = wav(24000, 1, 100, (short) 1000);
+        byte[] second = wav(24000, 1, 50, (short) 2000);
+
+        byte[] merged = WavUtil.concatSynthesized(Arrays.asList(first, second), MAX_BYTES);
+        ByteBuffer result = ByteBuffer.wrap(merged).order(ByteOrder.LITTLE_ENDIAN);
+
+        assertEquals(44 + 300, merged.length);
+        assertEquals(merged.length - 8, result.getInt(4));
+        assertEquals(300, result.getInt(40));
+        assertEquals(1000, result.getShort(44));
+        assertEquals(2000, result.getShort(44 + 200));
+    }
+
+    @Test
+    void rejectsConcatenatingDifferentAudioFormats() {
+        byte[] first = wav(24000, 1, 100);
+        byte[] second = wav(16000, 1, 100);
+
+        ClientApiException error = assertThrows(ClientApiException.class,
+                () -> WavUtil.concatSynthesized(Arrays.asList(first, second), MAX_BYTES));
 
         assertEquals(503, error.getStatus());
         assertEquals(ClientCodes.SERVICE_UNAVAILABLE, error.getCode());

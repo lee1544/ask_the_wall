@@ -72,6 +72,7 @@ public class ClientModelProperties {
         private String segmentationVersion = "speech-segments-v1";
         private String configVersion = "voice-policy-v1";
         private int maxTextChars = 32000;
+        private int providerChunkChars = 200;
         private int readTimeoutMs = 90000;
         private int maxAudioBytes = 16 * 1024 * 1024;
     }

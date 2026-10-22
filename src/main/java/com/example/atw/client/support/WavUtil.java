@@ -5,6 +5,7 @@ import com.example.atw.client.error.ClientCodes;
 
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 public final class WavUtil {
@@ -98,6 +99,69 @@ public final class WavUtil {
         return data;
     }
 
+    public static byte[] concatSynthesized(List<byte[]> parts, int maxBytes) {
+        if (parts == null || parts.isEmpty()) {
+            throw upstream("供应商音频为空");
+        }
+        if (parts.size() == 1) {
+            return normalizeSynthesized(parts.get(0), maxBytes);
+        }
+
+        byte[][] normalized = new byte[parts.size()][];
+        WavInfo[] infos = new WavInfo[parts.size()];
+        long totalData = 0L;
+        WavInfo reference = null;
+        for (int index = 0; index < parts.size(); index++) {
+            byte[] part = normalizeSynthesized(parts.get(index), maxBytes);
+            WavInfo info = parse(part);
+            if (info.audioFormat != 1 || info.bitsPerSample != 16) {
+                throw upstream("供应商音频必须为 PCM 16-bit");
+            }
+            long actualData = part.length - info.dataOffset;
+            if (info.dataSize != actualData || actualData <= 0) {
+                throw upstream("供应商音频长度与实际数据不一致");
+            }
+            if (reference == null) {
+                reference = info;
+            } else if (reference.channels != info.channels
+                    || reference.sampleRate != info.sampleRate
+                    || reference.blockAlign != info.blockAlign) {
+                throw upstream("供应商音频格式不一致");
+            }
+            normalized[index] = part;
+            infos[index] = info;
+            totalData += actualData;
+        }
+
+        long outputLength = 44L + totalData;
+        if (outputLength > maxBytes) {
+            throw new ClientApiException(413, ClientCodes.PAYLOAD_TOO_LARGE, "供应商音频超过大小限制");
+        }
+
+        byte[] result = new byte[(int) outputLength];
+        writeAscii(result, 0, "RIFF");
+        writeLe32(result, 4, (int) outputLength - 8);
+        writeAscii(result, 8, "WAVE");
+        writeAscii(result, 12, "fmt ");
+        writeLe32(result, 16, 16);
+        writeLe16(result, 20, reference.audioFormat);
+        writeLe16(result, 22, reference.channels);
+        writeLe32(result, 24, reference.sampleRate);
+        writeLe32(result, 28, reference.sampleRate * reference.blockAlign);
+        writeLe16(result, 32, reference.blockAlign);
+        writeLe16(result, 34, reference.bitsPerSample);
+        writeAscii(result, 36, "data");
+        writeLe32(result, 40, (int) totalData);
+
+        int position = 44;
+        for (int index = 0; index < normalized.length; index++) {
+            int size = (int) infos[index].dataSize;
+            System.arraycopy(normalized[index], infos[index].dataOffset, result, position, size);
+            position += size;
+        }
+        return result;
+    }
+
     private static WavInfo parse(byte[] data) {
         if (!asciiEquals(data, 0, "RIFF") || !asciiEquals(data, 8, "WAVE")) {
             throw new ClientApiException(400, ClientCodes.INVALID_ARGUMENT, "文件不是 RIFF/WAVE 格式");
@@ -177,11 +241,22 @@ public final class WavUtil {
         return (int) le32(data, offset);
     }
 
+    private static void writeLe16(byte[] data, int offset, int value) {
+        data[offset] = (byte) (value & 0xFF);
+        data[offset + 1] = (byte) ((value >>> 8) & 0xFF);
+    }
+
     private static void writeLe32(byte[] data, int offset, int value) {
         data[offset] = (byte) (value & 0xFF);
         data[offset + 1] = (byte) ((value >>> 8) & 0xFF);
         data[offset + 2] = (byte) ((value >>> 16) & 0xFF);
         data[offset + 3] = (byte) ((value >>> 24) & 0xFF);
+    }
+
+    private static void writeAscii(byte[] data, int offset, String value) {
+        for (int index = 0; index < value.length(); index++) {
+            data[offset + index] = (byte) value.charAt(index);
+        }
     }
 
     private static ClientApiException upstream(String message) {

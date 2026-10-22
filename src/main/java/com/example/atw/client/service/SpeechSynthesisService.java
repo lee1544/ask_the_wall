@@ -10,6 +10,7 @@ import com.example.atw.client.error.ClientCodes;
 import com.example.atw.client.provider.BailianClient;
 import com.example.atw.client.support.ClientHashes;
 import com.example.atw.client.support.ClientTime;
+import com.example.atw.client.support.SpeechTextChunker;
 import com.example.atw.client.support.WavUtil;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -17,6 +18,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -86,7 +88,15 @@ public class SpeechSynthesisService {
                 return response;
             }
 
-            byte[] raw = bailianClient.synthesize(segmentText, voice);
+            List<String> providerChunks = SpeechTextChunker.chunk(
+                    segmentText, properties.getTts().getProviderChunkChars());
+            List<byte[]> rawParts = new ArrayList<>(providerChunks.size());
+            for (String providerChunk : providerChunks) {
+                rawParts.add(bailianClient.synthesize(providerChunk, voice));
+            }
+            byte[] raw = rawParts.size() == 1
+                    ? rawParts.get(0)
+                    : WavUtil.concatSynthesized(rawParts, properties.getTts().getMaxAudioBytes());
             byte[] wav = WavUtil.normalizeSynthesized(raw, properties.getTts().getMaxAudioBytes());
             ClientMedia media = mediaService.save(userId, ClientMediaService.TYPE_AUDIO, "audio/wav", wav, cacheKey);
             SpeechSynthesizeResponse response = buildResponse(media, segmentIndex, segments.size(), voice, false);
