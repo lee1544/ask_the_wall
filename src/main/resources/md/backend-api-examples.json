@@ -7,13 +7,15 @@
     "response": {
       "chat": {
         "available": true,
-        "contextBudget": 8192,
-        "reservedOutputTokens": 1536,
-        "maxOutputTokens": 1536,
+        "contextBudget": 262144,
+        "reservedOutputTokens": 8192,
+        "maxOutputTokens": 8192,
         "spaceId": "chat-policy-v3",
-        "maxRequestBytes": 2097152,
+        "maxRequestBytes": 4194304,
         "maxMessages": 1024,
-        "maxResponseChars": 2000000
+        "maxResponseChars": 200000,
+        "webSearchAvailable": true,
+        "maxToolRounds": 4
       },
       "image": {
         "available": true,

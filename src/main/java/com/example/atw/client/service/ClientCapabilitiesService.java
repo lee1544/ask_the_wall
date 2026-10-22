@@ -23,6 +23,9 @@ public class ClientCapabilitiesService {
     @Autowired
     private ActivationCodeService activationCodeService;
 
+    @Autowired
+    private WebSearchService webSearchService;
+
     public Map<String, Object> capabilities(String licenseHeader) {
         boolean licensed = isLicensed(licenseHeader);
         boolean chatKey = hasText(properties.getDeepseek().getApiKey());
@@ -37,6 +40,8 @@ public class ClientCapabilitiesService {
         chat.put("maxRequestBytes", properties.getChat().getMaxRequestBytes());
         chat.put("maxMessages", properties.getChat().getMaxMessages());
         chat.put("maxResponseChars", properties.getChat().getMaxResponseChars());
+        chat.put("webSearchAvailable", licensed && webSearchService.isAvailable());
+        chat.put("maxToolRounds", properties.getChat().getMaxToolRounds());
 
         Map<String, Object> image = new LinkedHashMap<>();
         image.put("available", licensed && bailianKey);

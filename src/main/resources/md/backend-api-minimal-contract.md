@@ -1,6 +1,6 @@
 # 客户端服务 API 实现规范
 
-文档修订：2026-10-20。接口契约版本：1.2。适用对象：独立服务端开发与联调人员。本文可以独立阅读，不需要客户端源码。路径、字段与配套 JSON 示例保持一致，本次修订增加免 JWT 接口范围，不改变请求/响应结构。
+文档修订：2026-10-22。接口契约版本：1.3。适用对象：独立服务端开发与联调人员。本文可以独立阅读，不需要客户端源码。路径、字段与配套 JSON 示例保持一致。本次修订增加服务端内部联网搜索能力；客户端请求/响应结构不变。
 
 配套材料：[模型供应商接入规范](backend-model-provider-reference.md)、[完整请求/响应示例](backend-api-examples.json)。示例均为合成数据，不含真实密钥。尚未确定的事项见第 13 节。
 
@@ -66,7 +66,7 @@
 - 不自动重试任何可能付费的生成。幂等记录须跨后端重启可用。第一期统一约定：终态请求记录和可恢复结果至少保留至结束后 24 小时；图片/音频成功结果也至少保留至成功后 24 小时。expiresAt 返回实际过期时间，实际保留期不得短于承诺。运行中的任务不得因记录 TTL 提前清除。
 - 严格禁止普通用户通过 model/baseUrl/apiKey/region 等字段覆盖管理配置；若请求包含这些禁止字段，建议返回 400。
 - 图片/音频/请求状态/停止操作都验证归属。已登录请求按 userId 隔离；1.1 节免 JWT 请求按匿名归属隔离，因此匿名 requestId 必须全局唯一且不可猜测。并发上限由服务端按用户和授权控制，不能将所有用户串行为单个任务。
-- 建议操作时限：对话 120 秒、图片 180 秒、语音 90 秒、向量每批 60 秒。服务端与反向代理须协调超时；这些时限不代表模型响应速度保证。
+- 建议操作时限：对话 300 秒、图片 180 秒、语音 90 秒、向量每批 60 秒。服务端与反向代理须协调超时；这些时限不代表模型响应速度保证。
 
 统一错误示例（HTTP 429）：
 
@@ -99,13 +99,15 @@
 {
   "chat": {
     "available": true,
-    "contextBudget": 8192,
-    "reservedOutputTokens": 1536,
-    "maxOutputTokens": 1536,
+    "contextBudget": 262144,
+    "reservedOutputTokens": 8192,
+    "maxOutputTokens": 8192,
     "spaceId": "chat-policy-v3",
-    "maxRequestBytes": 2097152,
+    "maxRequestBytes": 4194304,
     "maxMessages": 1024,
-    "maxResponseChars": 2000000
+    "maxResponseChars": 200000,
+    "webSearchAvailable": true,
+    "maxToolRounds": 4
   },
   "image": {
     "available": true,
@@ -137,7 +139,7 @@
 }
 ```
 
-available 综合账号授权、业务启停和配置是否完整；没有权限返回 false，不让客户端猜测。该接口不执行付费模型连通测试，不能保证供应商此刻一定可调用；真实调用失败仍返回安全错误；不能返回演示答案或静默切换未约定的模型来伪装成功。voice.available 表示识别/合成至少一项可用，两个操作分别以 recognitionAvailable/synthesisAvailable 判断，不能仅用总开关误开启已禁用的操作。voice.defaultVoice 与 voice.voices 是服务端允许的音色列表；客户端只能从 voices 中选择，缺省使用 defaultVoice。chat.spaceId 在影响上下文摘要策略的模型/预算变化时更新；用于让客户端判断摘要缓存是否仍适用，不暴露底层模型名称。voice.configVersion 在影响音频内容的模型、音色列表或默认音色变化时更新，避免命中旧音色缓存。
+available 综合账号授权、业务启停和配置是否完整；没有权限返回 false，不让客户端猜测。该接口不执行付费模型连通测试，不能保证供应商此刻一定可调用；真实调用失败仍返回安全错误；不能返回演示答案或静默切换未约定的模型来伪装成功。voice.available 表示识别/合成至少一项可用，两个操作分别以 recognitionAvailable/synthesisAvailable 判断，不能仅用总开关误开启已禁用的操作。voice.defaultVoice 与 voice.voices 是服务端允许的音色列表；客户端只能从 voices 中选择，缺省使用 defaultVoice。chat.spaceId 在影响上下文摘要策略的模型/预算变化时更新；用于让客户端判断摘要缓存是否仍适用，不暴露底层模型名称。voice.configVersion 在影响音频内容的模型、音色列表或默认音色变化时更新，避免命中旧音色缓存。chat.webSearchAvailable 表示服务端已启用并在当前授权下可使用联网搜索，不代表客户端可以直接调用搜索接口；chat.maxToolRounds 是服务端单次回答允许的最大工具轮数。客户端不得因 webSearchAvailable=false 自行拼接“请联网”指令，服务端会按自身能力决定是否调用工具。
 
 第一期在线调用模式下，/session 和 /capabilities 允许已登录但尚未激活/授权过期的用户访问，返回状态与 available=false，不因缺 License 阻止激活界面初始化。各个生成接口仍独立强制验证授权，available 不能代替鉴权。
 
@@ -163,7 +165,9 @@ embedding.spaceId 是后端生成的稳定、不透明向量空间标识，在�
 | expectedPolicyVersion | string | 是 | capabilities.chat.spaceId，摘要和该组最终回答使用同一版本 |
 | max_tokens | integer | 否 | 摘要使用 768；最终回答可不传，后端使用配置上限。仅作为预算请求，低于 256 时后端按 256 执行 |
 
-messages 至少 1 条，最多按 capabilities.chat.maxMessages；content 必须是非空字符串，保留用户原始空白，不把它当 JSON 指令解析。第一条为 system，后续仅 user/assistant，最后一条为本次 user；本期不支持图片 content 数组、tools/function calling。整个 JSON body 不超过 capabilities.chat.maxRequestBytes。max_tokens 存在时是正整数且不超过 maxOutputTokens，超限明确返回 400；低于 256 时按 256 执行，避免模型只返回空内容。
+messages 至少 1 条，最多按 capabilities.chat.maxMessages；content 必须是非空字符串，保留用户原始空白，不把它当 JSON 指令解析。第一条为 system，后续仅 user/assistant，最后一条为本次 user；本期不接受客户端提交图片 content 数组或 tools/function calling。整个 JSON body 不超过 capabilities.chat.maxRequestBytes。max_tokens 存在时是正整数且不超过 maxOutputTokens，超限明确返回 400；低于 256 时按 256 执行，避免模型只返回空内容。
+
+服务端可在内部使用联网搜索工具：当 purpose=answer 且 capabilities.chat.webSearchAvailable=true 时，模型可自行决定调用 web_search 或 web_fetch，服务端最多执行 maxToolRounds 轮，工具结果仅用于生成最终回答，不通过客户端 API 暴露工具调用帧、搜索结果或供应商原始响应。摘要请求（purpose=summary）不启用工具。联网回答可能包含多次上游调用，客户端仍按同一 requestId/generationId 处理完成、失败与停止；usage 若返回则为各轮汇总值。是否联网由服务端和模型判断，客户端不能通过请求字段强制联网或指定搜索词。
 
 purpose=summary 时 stream 必须为 false，max_tokens 默认 768 且受后端策略上限约束；answer 同时支持 stream=true/false。purpose 只影响分组和额度检查，不能用来选择任意供应商或绕过授权。
 
@@ -203,7 +207,7 @@ purpose=summary 时 stream 必须为 false，max_tokens 默认 768 且受后端�
 }
 ```
 
-choices[0].message.content 必须是非空字符串；usage 可选，但存在时为真实数值。finish_reason 支持 stop/length，length 表示达到输出长度限制。审核拒绝使用明确错误，不能伪造正常回复。
+choices[0].message.content 必须是非空字符串；usage 可选，但存在时为真实数值；发生联网工具调用时，usage 为各轮供应商返回值的汇总。finish_reason 支持 stop/length，length 表示达到输出长度限制。审核拒绝使用明确错误，不能伪造正常回复。
 
 ### 4.3 流式响应（200 text/event-stream）
 
@@ -222,7 +226,7 @@ data: [DONE]
 
 每帧 `data: JSON\n\n`，UTF-8。不要输出思考内容作为回答正文；增量必须是字符串，空字符串可忽略。建议在含 finish_reason 的最后一帧携带 usage，避免 [DONE] 后才追加用量。完整响应必须有 finish_reason 和最终 [DONE]，不能靠断开连接代表正常完成。
 
-代理关闭对应响应缓冲，及时 flush；连接头与代理配置匹配部署环境。允许注释心跳 `: ping\n\n`，不能把心跳放 delta 正文。
+代理关闭对应响应缓冲，及时 flush；连接头与代理配置匹配部署环境。允许注释心跳 `: ping\n\n`，不能把心跳放 delta 正文。联网工具的中间调用不作为独立 SSE 事件输出；客户端只接收最终回答的 `delta.content`。
 
 如果流开始前鉴权失败，返回相应 HTTP 状态与 JSON 错误。流已经开始后，返回错误帧并结束，不发送正常完成标记：
 

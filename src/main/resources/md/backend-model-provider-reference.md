@@ -1,6 +1,6 @@
 # 模型供应商接入规范
 
-修订日期：2026-10-19。面向服务端开发人员。本文规定服务端调用模型供应商时使用的模型、地址、请求体、响应解析及媒体处理规则；无需阅读客户端代码。
+修订日期：2026-10-22。面向服务端开发人员。本文规定服务端调用模型供应商时使用的模型、地址、请求体、响应解析及媒体处理规则；无需阅读客户端代码。
 
 客户端调用服务端的字段、状态码、鉴权和幂等规则见 [客户端服务 API 实现规范](backend-api-minimal-contract.md)。**本文 JSON 是“服务端 → 供应商”的请求，不是客户端请求。** 两层令牌和字段不同。
 
@@ -13,6 +13,8 @@
 | 语音合成 TTS | `qwen3-tts-flash` | 百炼，默认音色 `Cherry` |
 | 静态头像生成 | `wan2.7-image` | 百炼，单次一张、2K |
 | 文本向量 | `text-embedding-v4` | 百炼，1024 维 dense |
+
+对话模型启用联网时，还会调用 DeepSeek 原生 Search/Fetch 工具，见 3.1 节。
 
 百炼初始配置采用北京地域、业务空间 ID 为空，公共域名 `https://dashscope.aliyuncs.com`。四项百炼能力可共用该地域的一个服务端密钥；对话连接使用独立密钥。所有密钥由服务端保存和管理，不向客户端返回。
 
@@ -60,11 +62,34 @@
 
 客户端已将系统提示词、知识片段与历史整理为 messages。服务端按顺序传给模型，不重复检索、摘要或拼接提示词，也不按业务 ID 查询知识库。
 
-`temperature`、`top_p`、`seed` 与惩罚项不额外设置，使用供应商默认值。输出预算按 /capabilities 公布的策略执行：基准 maxOutputTokens 为 1536；普通回答未指定 max_tokens 时向供应商发送策略上限，指定时不得超过上限。摘要使用同一模型，stream=false，max_tokens 默认 768，且不超过策略上限。上方 JSON 只展示模型和消息映射，实际请求应补入经限额校验的 max_tokens。
+`temperature`、`top_p`、`seed` 与惩罚项不额外设置，使用供应商默认值。输出预算按 /capabilities 公布的策略执行：基准 maxOutputTokens 为 8192；普通回答未指定 max_tokens 时向供应商发送策略上限，指定时不得超过上限。摘要使用同一模型，stream=false，max_tokens 默认 768，且不超过策略上限。上方 JSON 只展示模型和消息映射，实际请求应补入经限额校验的 max_tokens。
 
-非流式读取 `choices[0].message.content`、可选 `usage`；`choices[0].finish_reason === "length"` 表示截断。流式读取 `data:` SSE 帧中的 `choices[0].delta.content`，终帧处理 finish_reason 和 usage，以 `[DONE]` 结束。空文本、供应商错误帧及异常中断不能包装成成功。上游超时基准 120 秒，回答累计最多 2,000,000 字符。
+非流式读取 `choices[0].message.content`、可选 `usage`；`choices[0].finish_reason === "length"` 表示截断。流式读取 `data:` SSE 帧中的 `choices[0].delta.content`，终帧处理 finish_reason 和 usage，以 `[DONE]` 结束。空文本、供应商错误帧及异常中断不能包装成成功。上游超时基准 300 秒，回答累计最多 200,000 字符。
 
 服务端按客户端 API 规范返回 choices 结构；不额外包装业务会话对象或自定义页面事件。
+
+### 3.1 联网搜索与网页抓取
+
+启用联网能力时，answer 对话仍走 DeepSeek Chat Completions，但请求体额外携带 `tools`，并设置 `tool_choice: "auto"`，由模型决定是否调用工具。仅在 purpose=answer、服务端配置了 `client.deepseek.api-key` 且 `client.web-search.enabled=true` 时发送工具定义；摘要请求不发送工具。工具调用和搜索结果不向客户端暴露。
+
+工具定义：
+
+| 工具 | 参数 | 用途 |
+| --- | --- | --- |
+| `web_search` | `query` 必填，最多 128 字符；`count` 可选，1–5；`ori_question` 可选，最多 128 字符 | 搜索实时信息，支持常见搜索操作符 |
+| `web_fetch` | `url` 必填，HTTP/HTTPS、最多 8192 字符、禁止用户名密码 | 抓取指定网页的 Markdown 正文 |
+
+搜索与抓取使用 DeepSeek 原生工具接口。将 `DEEPSEEK_BASE_URL` 去掉末尾斜杠；若已以 `/v1` 结尾，则分别追加 `/tools/search`、`/tools/fetch`，否则追加 `/v1/tools/search`、`/v1/tools/fetch`。请求头使用对话同一服务端密钥的 `Authorization: Bearer <key>`，超时基准为连接 5 秒、读取 30 秒。
+
+搜索请求示例：
+
+```json
+{"query": "2026 年 10 月 AI 新闻", "count": 5, "ori_question": "最近有哪些 AI 新闻？"}
+```
+
+搜索响应读取 `results[]`，每项可含 `title/url/snippet/summary/date/site_name/rerank_score/authority`。只接受 HTTP/HTTPS 结果；摘要优先取 `summary`，缺失时取 `snippet`，最多 800 字符；标题最多 200 字符。抓取响应读取 `title/content`，正文按 Markdown 保留换行，最多 8000 字符。
+
+工具循环最多 4 轮，每轮最多执行 3 个工具调用；超出数量或轮次的调用以工具错误 JSON 返回，不再访问搜索接口。搜索/抓取失败也以工具错误 JSON 作为 `role=tool` 消息返回，由模型基于已有信息继续回答，不能把工具失败直接包装成成功答案。发送给供应商的历史消息中，assistant 的 `tool_calls` 与对应 `tool_call_id` 必须原样保留。
 
 ## 4. ASR：qwen3-asr-flash
 
@@ -218,7 +243,7 @@ HTTP 成功也要检查供应商 JSON 的 code 字段。供应商密钥失效向
 | 头像 | 180 秒 | 包含结果下载，应用后台任务继续运行 |
 | 向量 | 每批 60 秒 | 10 条为一批，不因网络故障自动重复付费 |
 
-并发限制按用户、授权和服务端容量制定；不同用户的任务应隔离。超时不是模型性能承诺，反向代理须允许正常请求完成。
+联网工具自身按连接 5 秒、读取 30 秒控制；工具轮次会增加对话上游调用次数，整体仍受服务端生成的流超时约束。并发限制按用户、授权和服务端容量制定；不同用户的任务应隔离。超时不是模型性能承诺，反向代理须允许正常请求完成。
 
 交接验收至少覆盖：同样 messages 的普通/翻译/调试/知识库回答；摘要 768 输出约束；ASR 中文数字识别与静音；三种音色、长 Markdown 分段连续播放、HTTP OSS 地址与 WAV 占位长度；文字/参考图头像和取消；document/query 两类 1024 维向量及顺序恢复。所有付费操作同时遵守主契约 requestId 幂等与结果恢复，失败不自动重试。
 

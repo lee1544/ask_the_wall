@@ -526,7 +526,7 @@ X-License: ATW1...
 
 ```json
 {
-  "chat": {"available": true, "spaceId": "chat-policy-v1", "contextBudget": 8192, "maxOutputTokens": 1536},
+  "chat": {"available": true, "spaceId": "chat-policy-v1", "contextBudget": 262144, "maxOutputTokens": 8192},
   "image": {"available": true, "configVersion": "image-policy-v1", "maxPromptChars": 3000},
   "voice": {"available": true, "recognitionAvailable": true, "synthesisAvailable": true, "defaultVoice": "Cherry", "voices": ["Cherry", "Serena", "Ethan"], "configVersion": "voice-policy-v1"},
   "embedding": {"available": true, "spaceId": "embedding-space-v1", "dimensions": 1024}
@@ -565,7 +565,7 @@ X-License: ATW1...
 ```
 
 约束：`purpose` 为 `answer` 或 `summary`；`summary` 必须非流式；`messages` 第一条必须是
-`system`、最后一条必须是 `user`，最多 1024 条；`max_tokens` 范围 1–1536，低于 256 时后端按
+`system`、最后一条必须是 `user`，最多 1024 条；`max_tokens` 范围 1–8192，低于 256 时后端按
 256 执行。客户端接口时间统一为北京时间，ISO 8601 输出带 `+08:00`。
 
 流式请求将 `stream` 设为 `true`，响应为 `text/event-stream`：
@@ -747,6 +747,7 @@ Range: bytes=0-99
 DEEPSEEK_API_KEY=...
 DEEPSEEK_BASE_URL=https://api.deepseek.com
 DEEPSEEK_MODEL=deepseek-flash
+WEB_SEARCH_ENABLED=true
 BAILIAN_API_KEY=...
 BAILIAN_ORIGIN=https://dashscope.aliyuncs.com
 BAILIAN_ASR_MODEL=qwen3-asr-flash
@@ -759,7 +760,7 @@ CLIENT_MEDIA_DIR=./data/media
 LICENSE_ENFORCE=true
 ```
 
-其余限制/版本见 `application.properties` 的 `client.*` 段。管理端如调整模型、音色或
+联网搜索复用 `DEEPSEEK_API_KEY`，不需要单独配置搜索密钥；关闭时设 `WEB_SEARCH_ENABLED=false`。其余限制/版本见 `application.properties` 的 `client.*` 段。管理端如调整模型、音色或
 分段规则，必须同步更新 `client.chat.space-id`、`client.tts.config-version`、
 `client.image.config-version`、`client.embedding.space-id`，否则客户端会收到
 `CONFIG_CHANGED` / `INDEX_SPACE_CHANGED`。
@@ -786,7 +787,7 @@ mysql -u root -p ask_the_wall < src/main/resources/static/system_init.sql
 ### 部署注意
 
 - SSE 反向代理必须关闭响应缓冲（Nginx `proxy_buffering off;`，并放行
-  `text/event-stream`），读超时至少 120 秒；后端每帧为 `data: JSON\n\n`，正常结束发送
+  `text/event-stream`），读超时至少 300 秒；后端每帧为 `data: JSON\n\n`，正常结束发送
   `data: [DONE]`。
 - 后端对聊天流设置了 `X-Config-Version` 响应头；客户端刷新能力后可据此判断版本。
 - 临时媒体默认保留 24 小时，`client.media.dir` 需可写；媒体清理任务每 10 分钟运行一次。

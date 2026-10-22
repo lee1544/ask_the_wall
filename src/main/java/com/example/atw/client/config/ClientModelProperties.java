@@ -25,6 +25,7 @@ public class ClientModelProperties {
     private Embedding embedding = new Embedding();
     private Media media = new Media();
     private Requests requests = new Requests();
+    private WebSearch webSearch = new WebSearch();
 
     @Data
     public static class Deepseek {
@@ -32,7 +33,7 @@ public class ClientModelProperties {
         private String apiKey = "";
         private String model = "deepseek-flash";
         private int connectTimeoutMs = 10000;
-        private int readTimeoutMs = 120000;
+        private int readTimeoutMs = 300000;
     }
 
     @Data
@@ -45,14 +46,15 @@ public class ClientModelProperties {
     @Data
     public static class Chat {
         private String spaceId = "chat-policy-v1";
-        private int contextBudget = 8192;
-        private int reservedOutputTokens = 1536;
+        private int contextBudget = 262144;
+        private int reservedOutputTokens = 8192;
         private int minOutputTokens = 256;
-        private int maxOutputTokens = 1536;
-        private int maxRequestBytes = 2097152;
+        private int maxOutputTokens = 8192;
+        private int maxRequestBytes = 4194304;
         private int maxMessages = 1024;
-        private int maxResponseChars = 2000000;
-        private int streamTimeoutMs = 180000;
+        private int maxResponseChars = 200000;
+        private int streamTimeoutMs = 300000;
+        private int maxToolRounds = 4;
     }
 
     @Data
@@ -111,5 +113,16 @@ public class ClientModelProperties {
     @Data
     public static class Requests {
         private int retentionHours = 24;
+    }
+
+    @Data
+    public static class WebSearch {
+        private boolean enabled = true;
+        private int maxResults = 5;
+        private int maxSummaryChars = 800;
+        private int maxFetchChars = 8000;
+        private int maxCallsPerRound = 3;
+        private int connectTimeoutMs = 5000;
+        private int readTimeoutMs = 30000;
     }
 }

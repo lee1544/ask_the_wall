@@ -1,14 +1,13 @@
 package com.example.atw.client.provider;
 
 import com.example.atw.client.config.ClientModelProperties;
-import com.example.atw.client.dto.ChatChoice;
 import com.example.atw.client.dto.ChatMessage;
-import com.example.atw.client.dto.ChatRequest;
-import com.example.atw.client.dto.ChatResponse;
+import com.example.atw.client.dto.ChatToolCall;
 import com.example.atw.client.dto.ChatUsage;
 import com.example.atw.client.error.ClientApiException;
 import com.example.atw.client.error.ClientCodes;
 import com.example.atw.client.service.ChatCancellationRegistry;
+import com.example.atw.client.service.WebSearchService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,8 +38,11 @@ public class DeepSeekClient {
     @Autowired
     private ChatCancellationRegistry cancellationRegistry;
 
-    public ChatResponse complete(ChatRequest request, String requestId, int maxTokens) {
-        Map<String, Object> body = buildBody(request, false, maxTokens);
+    @Autowired
+    private WebSearchService webSearchService;
+
+    public Completion complete(List<ChatMessage> messages, int maxTokens, boolean allowTools) {
+        Map<String, Object> body = buildBody(messages, false, maxTokens, allowTools);
         HttpJsonClient.JsonResult result = http.postJson(
                 endpoint(), headers(), body,
                 properties.getDeepseek().getConnectTimeoutMs(),
@@ -62,25 +64,20 @@ public class DeepSeekClient {
             String content = message == null || !message.has("content")
                     || message.get("content").isNull()
                     ? null : message.get("content").asText(null);
-            if (content == null || content.isEmpty()) {
+            List<ChatToolCall> toolCalls = message == null
+                    ? Collections.<ChatToolCall>emptyList()
+                    : parseToolCalls(message.get("tool_calls"));
+            if ((content == null || content.isEmpty()) && toolCalls.isEmpty()) {
                 throw new ClientApiException(503, ClientCodes.UPSTREAM_ERROR, "模型返回为空");
             }
 
-            ChatMessage outMessage = new ChatMessage();
-            outMessage.setRole(message.has("role") ? message.get("role").asText() : "assistant");
-            outMessage.setContent(content);
-
-            ChatChoice choice = new ChatChoice();
-            choice.setIndex(first.has("index") ? first.get("index").asInt() : 0);
-            choice.setMessage(outMessage);
-            choice.setFinishReason(first.has("finish_reason") && !first.get("finish_reason").isNull()
+            Completion completion = new Completion();
+            completion.setContent(content == null ? "" : content);
+            completion.setToolCalls(toolCalls);
+            completion.setFinishReason(first.has("finish_reason") && !first.get("finish_reason").isNull()
                     ? first.get("finish_reason").asText() : "stop");
-
-            ChatResponse response = new ChatResponse();
-            response.setRequestId(requestId);
-            response.setChoices(Collections.singletonList(choice));
-            response.setUsage(parseUsage(root.get("usage")));
-            return response;
+            completion.setUsage(parseUsage(root.get("usage")));
+            return completion;
         } catch (ClientApiException e) {
             throw e;
         } catch (Exception e) {
@@ -88,8 +85,9 @@ public class DeepSeekClient {
         }
     }
 
-    public StreamHandle openStream(ChatRequest request, String generationId, int maxTokens) {
-        Map<String, Object> body = buildBody(request, true, maxTokens);
+    public StreamHandle openStream(List<ChatMessage> messages, String generationId,
+                                   int maxTokens, boolean allowTools) {
+        Map<String, Object> body = buildBody(messages, true, maxTokens, allowTools);
         HttpJsonClient.StreamResult result = http.postStream(
                 endpoint(), headers(), body,
                 properties.getDeepseek().getConnectTimeoutMs(),
@@ -105,6 +103,7 @@ public class DeepSeekClient {
         String finishReason = null;
         ChatUsage usage = null;
         boolean sawDone = false;
+        Map<Integer, ToolCallBuilder> toolCallBuilders = new LinkedHashMap<>();
         try {
             BufferedReader reader = handle.result.getReader();
             String line;
@@ -137,10 +136,12 @@ public class DeepSeekClient {
                     handler.onError(ClientCodes.UPSTREAM_ERROR, "模型生成失败");
                     return;
                 }
-                JsonNode delta = frame.path("choices").path(0).path("delta").path("content");
-                if (delta.isTextual() && !delta.asText().isEmpty()) {
-                    handler.onDelta(delta.asText());
+                JsonNode delta = frame.path("choices").path(0).path("delta");
+                JsonNode content = delta.path("content");
+                if (content.isTextual() && !content.asText().isEmpty()) {
+                    handler.onDelta(content.asText());
                 }
+                collectToolCalls(delta.path("tool_calls"), toolCallBuilders);
                 JsonNode reason = frame.path("choices").path(0).path("finish_reason");
                 if (!reason.isMissingNode() && !reason.isNull()) {
                     finishReason = reason.asText();
@@ -158,7 +159,7 @@ public class DeepSeekClient {
                 handler.onError(ClientCodes.UPSTREAM_ERROR, "模型流未正常结束");
                 return;
             }
-            handler.onFinish(finishReason, usage);
+            handler.onFinish(finishReason, usage, buildToolCalls(toolCallBuilders));
         } catch (ClientApiException e) {
             if (cancellationRegistry.isStopped(handle.generationId)) {
                 handler.onError(ClientCodes.REQUEST_CANCELLED, "生成已停止");
@@ -176,20 +177,106 @@ public class DeepSeekClient {
         }
     }
 
-    private Map<String, Object> buildBody(ChatRequest request, boolean stream, int maxTokens) {
+    private Map<String, Object> buildBody(List<ChatMessage> messages, boolean stream,
+                                          int maxTokens, boolean allowTools) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("model", properties.getDeepseek().getModel());
         body.put("stream", stream);
-        List<Map<String, String>> messages = new ArrayList<>();
-        for (ChatMessage message : request.getMessages()) {
-            Map<String, String> item = new LinkedHashMap<>();
+        List<Map<String, Object>> providerMessages = new ArrayList<>();
+        for (ChatMessage message : messages) {
+            Map<String, Object> item = new LinkedHashMap<>();
             item.put("role", message.getRole());
-            item.put("content", message.getContent());
-            messages.add(item);
+            if (message.getContent() != null) {
+                item.put("content", message.getContent());
+            } else if (!"assistant".equals(message.getRole())) {
+                item.put("content", "");
+            } else {
+                item.put("content", null);
+            }
+            if (message.getToolCallId() != null) {
+                item.put("tool_call_id", message.getToolCallId());
+            }
+            if (message.getToolCalls() != null && !message.getToolCalls().isEmpty()) {
+                item.put("tool_calls", message.getToolCalls());
+            }
+            providerMessages.add(item);
         }
-        body.put("messages", messages);
+        body.put("messages", providerMessages);
         body.put("max_tokens", maxTokens);
+        if (allowTools && webSearchService.isAvailable()) {
+            body.put("tools", webSearchService.definitions());
+            body.put("tool_choice", "auto");
+        }
         return body;
+    }
+
+    private void collectToolCalls(JsonNode nodes, Map<Integer, ToolCallBuilder> builders) {
+        if (nodes == null || !nodes.isArray()) {
+            return;
+        }
+        for (JsonNode node : nodes) {
+            int index = node.has("index") ? node.get("index").asInt(builders.size()) : builders.size();
+            ToolCallBuilder builder = builders.get(index);
+            if (builder == null) {
+                builder = new ToolCallBuilder();
+                builders.put(index, builder);
+            }
+            if (node.has("id") && !node.get("id").isNull()) {
+                builder.id = node.get("id").asText();
+            }
+            if (node.has("type") && !node.get("type").isNull()) {
+                builder.type = node.get("type").asText();
+            }
+            JsonNode function = node.path("function");
+            if (function.has("name") && !function.get("name").isNull()) {
+                builder.name.append(function.get("name").asText());
+            }
+            if (function.has("arguments") && !function.get("arguments").isNull()) {
+                builder.arguments.append(function.get("arguments").asText());
+            }
+        }
+    }
+
+    private List<ChatToolCall> buildToolCalls(Map<Integer, ToolCallBuilder> builders) {
+        List<ChatToolCall> toolCalls = new ArrayList<>();
+        for (ToolCallBuilder builder : builders.values()) {
+            if (builder.name.length() == 0) {
+                continue;
+            }
+            ChatToolCall toolCall = new ChatToolCall();
+            toolCall.setId(builder.id == null || builder.id.isEmpty()
+                    ? "call_" + toolCalls.size() : builder.id);
+            toolCall.setType(builder.type == null || builder.type.isEmpty() ? "function" : builder.type);
+            ChatToolCall.Function function = new ChatToolCall.Function();
+            function.setName(builder.name.toString());
+            function.setArguments(builder.arguments.length() == 0 ? "{}" : builder.arguments.toString());
+            toolCall.setFunction(function);
+            toolCalls.add(toolCall);
+        }
+        return toolCalls;
+    }
+
+    private List<ChatToolCall> parseToolCalls(JsonNode nodes) {
+        if (nodes == null || !nodes.isArray()) {
+            return Collections.emptyList();
+        }
+        List<ChatToolCall> toolCalls = new ArrayList<>();
+        for (JsonNode node : nodes) {
+            JsonNode function = node.path("function");
+            String name = function.path("name").asText("");
+            if (name.isEmpty()) {
+                continue;
+            }
+            ChatToolCall toolCall = new ChatToolCall();
+            toolCall.setId(node.path("id").asText("call_" + toolCalls.size()));
+            toolCall.setType(node.path("type").asText("function"));
+            ChatToolCall.Function callFunction = new ChatToolCall.Function();
+            callFunction.setName(name);
+            callFunction.setArguments(function.path("arguments").asText("{}"));
+            toolCall.setFunction(callFunction);
+            toolCalls.add(toolCall);
+        }
+        return toolCalls;
     }
 
     private Map<String, String> headers() {
@@ -254,6 +341,52 @@ public class DeepSeekClient {
         } catch (Exception ignored) {
         }
         return null;
+    }
+
+    private static class ToolCallBuilder {
+        private String id;
+        private String type;
+        private final StringBuilder name = new StringBuilder();
+        private final StringBuilder arguments = new StringBuilder();
+    }
+
+    public static class Completion {
+        private String content;
+        private String finishReason;
+        private ChatUsage usage;
+        private List<ChatToolCall> toolCalls;
+
+        public String getContent() {
+            return content;
+        }
+
+        public void setContent(String content) {
+            this.content = content;
+        }
+
+        public String getFinishReason() {
+            return finishReason;
+        }
+
+        public void setFinishReason(String finishReason) {
+            this.finishReason = finishReason;
+        }
+
+        public ChatUsage getUsage() {
+            return usage;
+        }
+
+        public void setUsage(ChatUsage usage) {
+            this.usage = usage;
+        }
+
+        public List<ChatToolCall> getToolCalls() {
+            return toolCalls;
+        }
+
+        public void setToolCalls(List<ChatToolCall> toolCalls) {
+            this.toolCalls = toolCalls;
+        }
     }
 
     public class StreamHandle implements Closeable {
