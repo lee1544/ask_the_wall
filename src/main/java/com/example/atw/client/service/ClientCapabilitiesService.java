@@ -1,5 +1,6 @@
 package com.example.atw.client.service;
 
+import com.example.atw.client.config.ChatModelRuntime;
 import com.example.atw.client.config.ClientModelProperties;
 import com.example.atw.dto.LicensePayload;
 import com.example.atw.service.ActivationCodeService;
@@ -26,21 +27,25 @@ public class ClientCapabilitiesService {
     @Autowired
     private WebSearchService webSearchService;
 
+    @Autowired
+    private ChatModelConfigService modelConfigService;
+
     public Map<String, Object> capabilities(String licenseHeader) {
         boolean licensed = isLicensed(licenseHeader);
-        boolean chatKey = hasText(properties.getDeepseek().getApiKey());
+        ChatModelRuntime runtime = modelConfigService.runtime();
+        boolean chatKey = runtime.hasApiKey();
         boolean bailianKey = hasText(properties.getBailian().getApiKey());
 
         Map<String, Object> chat = new LinkedHashMap<>();
         chat.put("available", licensed && chatKey);
-        chat.put("contextBudget", properties.getChat().getContextBudget());
-        chat.put("reservedOutputTokens", properties.getChat().getReservedOutputTokens());
-        chat.put("maxOutputTokens", properties.getChat().getMaxOutputTokens());
-        chat.put("spaceId", properties.getChat().getSpaceId());
+        chat.put("contextBudget", runtime.getContextBudget());
+        chat.put("reservedOutputTokens", runtime.getMaxOutputTokens());
+        chat.put("maxOutputTokens", runtime.getMaxOutputTokens());
+        chat.put("spaceId", runtime.getPolicyVersion());
         chat.put("maxRequestBytes", properties.getChat().getMaxRequestBytes());
         chat.put("maxMessages", properties.getChat().getMaxMessages());
         chat.put("maxResponseChars", properties.getChat().getMaxResponseChars());
-        chat.put("webSearchAvailable", licensed && webSearchService.isAvailable());
+        chat.put("webSearchAvailable", licensed && webSearchService.isAvailable(runtime));
         chat.put("maxToolRounds", properties.getChat().getMaxToolRounds());
 
         Map<String, Object> image = new LinkedHashMap<>();

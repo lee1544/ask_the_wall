@@ -1,5 +1,6 @@
 package com.example.atw.client.service;
 
+import com.example.atw.client.config.ChatModelRuntime;
 import com.example.atw.client.config.ClientModelProperties;
 import com.example.atw.client.dto.WebSearchResult;
 import com.example.atw.client.error.ClientApiException;
@@ -35,9 +36,17 @@ public class WebSearchService {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private ChatModelConfigService modelConfigService;
+
     public boolean isAvailable() {
+        return isAvailable(modelConfigService.runtime());
+    }
+
+    public boolean isAvailable(ChatModelRuntime runtime) {
         return properties.getWebSearch().isEnabled()
-                && hasText(properties.getDeepseek().getApiKey());
+                && runtime.isWebSearchEnabled()
+                && runtime.hasApiKey();
     }
 
     public List<Map<String, Object>> definitions() {
@@ -45,14 +54,18 @@ public class WebSearchService {
     }
 
     public String execute(String name, String arguments) {
-        if (!isAvailable()) {
+        return execute(name, arguments, modelConfigService.runtime());
+    }
+
+    public String execute(String name, String arguments, ChatModelRuntime runtime) {
+        if (!isAvailable(runtime)) {
             return error("联网搜索未配置");
         }
         if (TOOL_SEARCH.equals(name)) {
-            return executeSearch(arguments);
+            return executeSearch(arguments, runtime);
         }
         if (TOOL_FETCH.equals(name)) {
-            return executeFetch(arguments);
+            return executeFetch(arguments, runtime);
         }
         return error("不支持的工具");
     }
@@ -118,7 +131,7 @@ public class WebSearchService {
         return tool;
     }
 
-    private String executeSearch(String arguments) {
+    private String executeSearch(String arguments, ChatModelRuntime runtime) {
         try {
             JsonNode args = objectMapper.readTree(arguments == null || arguments.trim().isEmpty()
                     ? "{}" : arguments);
@@ -138,7 +151,7 @@ public class WebSearchService {
             }
 
             HttpJsonClient.JsonResult result = http.postJson(
-                    toolEndpoint("/tools/search"), headers(), body,
+                    toolEndpoint(runtime, "/tools/search"), headers(runtime), body,
                     properties.getWebSearch().getConnectTimeoutMs(),
                     properties.getWebSearch().getReadTimeoutMs());
             checkStatus(result);
@@ -166,7 +179,7 @@ public class WebSearchService {
         }
     }
 
-    private String executeFetch(String arguments) {
+    private String executeFetch(String arguments, ChatModelRuntime runtime) {
         try {
             JsonNode args = objectMapper.readTree(arguments == null || arguments.trim().isEmpty()
                     ? "{}" : arguments);
@@ -178,7 +191,7 @@ public class WebSearchService {
             Map<String, Object> body = new LinkedHashMap<>();
             body.put("url", url);
             HttpJsonClient.JsonResult result = http.postJson(
-                    toolEndpoint("/tools/fetch"), headers(), body,
+                    toolEndpoint(runtime, "/tools/fetch"), headers(runtime), body,
                     properties.getWebSearch().getConnectTimeoutMs(),
                     properties.getWebSearch().getReadTimeoutMs());
             checkStatus(result);
@@ -226,14 +239,14 @@ public class WebSearchService {
         return result;
     }
 
-    private Map<String, String> headers() {
+    private Map<String, String> headers(ChatModelRuntime runtime) {
         Map<String, String> headers = new LinkedHashMap<>();
-        headers.put("Authorization", "Bearer " + properties.getDeepseek().getApiKey());
+        headers.put("Authorization", "Bearer " + runtime.getApiKey());
         return headers;
     }
 
-    private String toolEndpoint(String path) {
-        String base = trimBase(properties.getDeepseek().getBaseUrl());
+    private String toolEndpoint(ChatModelRuntime runtime, String path) {
+        String base = trimBase(runtime.getBaseUrl());
         if (base.endsWith("/v1")) {
             return base + path;
         }

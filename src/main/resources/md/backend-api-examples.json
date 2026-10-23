@@ -10,7 +10,7 @@
         "contextBudget": 262144,
         "reservedOutputTokens": 8192,
         "maxOutputTokens": 8192,
-        "spaceId": "chat-policy-v3",
+        "spaceId": "chat-model-12-3",
         "maxRequestBytes": 4194304,
         "maxMessages": 1024,
         "maxResponseChars": 200000,
@@ -63,7 +63,7 @@
           "content": "很高兴与你合作。"
         }
       ],
-      "expectedPolicyVersion": "chat-policy-v3",
+      "expectedPolicyVersion": "chat-model-12-3",
       "purpose": "answer"
     },
     "nonStreamingResponse": {
@@ -142,7 +142,7 @@
           "content": "{\"previousSummary\": \"\", \"conversationExcerpt\": \"用户：预算300元。助手：已记录预算。\"}"
         }
       ],
-      "expectedPolicyVersion": "chat-policy-v3",
+      "expectedPolicyVersion": "chat-model-12-3",
       "purpose": "summary"
     },
     "response": {

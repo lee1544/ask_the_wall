@@ -2,6 +2,7 @@ package com.example.atw.client.service;
 
 import com.example.atw.client.config.ClientModelProperties;
 import com.example.atw.client.provider.HttpJsonClient;
+import com.example.atw.client.repository.ChatModelConfigRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -9,6 +10,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -17,7 +19,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 class WebSearchServiceTest {
@@ -125,6 +129,17 @@ class WebSearchServiceTest {
         ReflectionTestUtils.setField(service, "properties", properties);
         ReflectionTestUtils.setField(service, "http", http);
         ReflectionTestUtils.setField(service, "objectMapper", objectMapper);
+        ReflectionTestUtils.setField(service, "modelConfigService", configService(properties));
+        return service;
+    }
+
+    private ChatModelConfigService configService(ClientModelProperties properties) {
+        ChatModelConfigRepository repository = mock(ChatModelConfigRepository.class);
+        when(repository.findFirstByActiveTrue()).thenReturn(Optional.empty());
+        ChatModelConfigService service = spy(new ChatModelConfigService());
+        ReflectionTestUtils.setField(service, "repository", repository);
+        ReflectionTestUtils.setField(service, "properties", properties);
+        doReturn(null).when(service).environmentVariable("DEEPSEEK_API_KEY");
         return service;
     }
 }

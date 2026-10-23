@@ -1,5 +1,6 @@
 package com.example.atw.client.service;
 
+import com.example.atw.client.config.ChatModelRuntime;
 import com.example.atw.client.config.ClientModelProperties;
 import com.example.atw.client.dto.ChatChoice;
 import com.example.atw.client.dto.ChatMessage;
@@ -45,6 +46,9 @@ public class ChatService {
     private ClientModelProperties properties;
 
     @Autowired
+    private ChatModelConfigService modelConfigService;
+
+    @Autowired
     private ClientRequestService requestService;
 
     @Autowired
@@ -65,8 +69,9 @@ public class ChatService {
 
     public ChatOutcome handle(Integer userId, ChatRequest request, String requestId) {
         validate(request, requestId);
-        int maxTokens = resolveMaxTokens(request);
-        checkContextBudget(request, maxTokens, requestId);
+        ChatModelRuntime runtime = modelConfigService.runtime();
+        int maxTokens = resolveMaxTokens(request, runtime);
+        checkContextBudget(request, maxTokens, runtime, requestId);
 
         String hash = hash(request, maxTokens);
         ClientRequestService.Begin begin = requestService.begin(
@@ -74,11 +79,11 @@ public class ChatService {
                 request.getGenerationId(), request.getPurpose());
 
         if (begin.isReplay()) {
-            return replay(begin.getRecord());
+            return replay(begin.getRecord(), runtime);
         }
         ClientRequestRecord record = begin.getRecord();
 
-        if (!properties.getChat().getSpaceId().equals(request.getExpectedPolicyVersion())) {
+        if (!runtime.getPolicyVersion().equals(request.getExpectedPolicyVersion())) {
             requestService.fail(record, 409, ClientCodes.CONFIG_CHANGED, "服务配置已更新，请重新发起。");
             throw new ClientApiException(409, ClientCodes.CONFIG_CHANGED, "服务配置已更新，请重新发起。", requestId);
         }
@@ -92,7 +97,7 @@ public class ChatService {
             DeepSeekClient.StreamHandle handle;
             try {
                 handle = deepSeekClient.openStream(conversation, request.getGenerationId(),
-                        maxTokens, allowTools(request));
+                        maxTokens, allowWebSearch(request, runtime), runtime);
             } catch (ClientApiException e) {
                 requestService.fail(record, e.getStatus(), e.getCode(), e.getMessage());
                 throw e.withRequestId(requestId);
@@ -117,21 +122,21 @@ public class ChatService {
             });
             try {
                 executor.execute(() -> runStream(handle, currentHandle, conversation, request,
-                        record, emitter, maxTokens, aborted));
+                        record, emitter, maxTokens, runtime, aborted));
             } catch (RuntimeException e) {
                 disconnect(handle);
                 requestService.fail(record, 503, ClientCodes.SERVICE_UNAVAILABLE, "服务繁忙，请稍后重试。");
                 throw new ClientApiException(503, ClientCodes.SERVICE_UNAVAILABLE,
                         "服务繁忙，请稍后重试。", requestId);
             }
-            return ChatOutcome.stream(emitter, properties.getChat().getSpaceId());
+            return ChatOutcome.stream(emitter, runtime.getPolicyVersion());
         }
 
         try {
             ChatResponse response = completeWithTools(conversation, requestId, maxTokens,
-                    allowTools(request));
+                    allowWebSearch(request, runtime), runtime);
             requestService.complete(record, 200, response);
-            return ChatOutcome.json(response, properties.getChat().getSpaceId());
+            return ChatOutcome.json(response, runtime.getPolicyVersion());
         } catch (ClientApiException e) {
             requestService.fail(record, e.getStatus(), e.getCode(), e.getMessage());
             throw e.withRequestId(requestId);
@@ -203,11 +208,11 @@ public class ChatService {
                            AtomicReference<DeepSeekClient.StreamHandle> currentHandle,
                            List<ChatMessage> messages, ChatRequest request,
                            ClientRequestRecord record, SseEmitter emitter,
-                           int maxTokens, AtomicBoolean aborted) {
+                           int maxTokens, ChatModelRuntime runtime, AtomicBoolean aborted) {
         String requestId = request.getRequestId();
         StringBuilder totalContent = new StringBuilder();
         ChatUsage totalUsage = null;
-        boolean allowTools = allowTools(request);
+        boolean allowWebSearch = allowWebSearch(request, runtime);
         int rounds = 0;
         DeepSeekClient.StreamHandle handle = firstHandle;
         try {
@@ -250,28 +255,29 @@ public class ChatService {
                     return;
                 }
 
-                if (!allowTools) {
-                    requestService.fail(record, 503, ClientCodes.UPSTREAM_ERROR, "模型重复请求工具");
-                    safeSend(emitter, errorFrame(ClientCodes.UPSTREAM_ERROR, "模型重复请求工具", requestId));
+                if (!allowWebSearch || !runtime.usesDeepSeekWebSearch()) {
+                    requestService.fail(record, 503, ClientCodes.UPSTREAM_ERROR, "模型返回了未启用的工具调用");
+                    safeSend(emitter, errorFrame(ClientCodes.UPSTREAM_ERROR,
+                            "模型返回了未启用的工具调用", requestId));
                     completeQuietly(emitter);
                     return;
                 }
 
                 boolean limitReached = rounds >= properties.getChat().getMaxToolRounds();
                 if (limitReached) {
-                    appendToolMessages(messages, round.content.toString(), toolCalls, true);
-                    allowTools = false;
+                    appendToolMessages(messages, round.content.toString(), toolCalls, true, runtime);
+                    allowWebSearch = false;
                 } else {
                     rounds++;
-                    appendToolMessages(messages, round.content.toString(), toolCalls, false);
-                    checkContextBudget(messages, maxTokens, requestId);
+                    appendToolMessages(messages, round.content.toString(), toolCalls, false, runtime);
+                    checkContextBudget(messages, maxTokens, runtime, requestId);
                 }
                 if (aborted.get()) {
                     return;
                 }
 
                 handle = deepSeekClient.openStream(messages, request.getGenerationId(),
-                        maxTokens, allowTools);
+                        maxTokens, allowWebSearch, runtime);
                 currentHandle.set(handle);
             }
         } catch (ClientApiException e) {
@@ -355,12 +361,14 @@ public class ChatService {
     }
 
     private ChatResponse completeWithTools(List<ChatMessage> messages, String requestId,
-                                           int maxTokens, boolean allowTools) {
+                                           int maxTokens, boolean allowWebSearch,
+                                           ChatModelRuntime runtime) {
         StringBuilder totalContent = new StringBuilder();
         ChatUsage totalUsage = null;
         int rounds = 0;
         while (true) {
-            DeepSeekClient.Completion completion = deepSeekClient.complete(messages, maxTokens, allowTools);
+            DeepSeekClient.Completion completion = deepSeekClient.complete(
+                    messages, maxTokens, allowWebSearch, runtime);
             String roundContent = completion.getContent() == null ? "" : completion.getContent();
             totalContent.append(roundContent);
             totalUsage = addUsage(totalUsage, completion.getUsage());
@@ -373,24 +381,26 @@ public class ChatService {
                 return buildResponse(requestId, totalContent.toString(),
                         completion.getFinishReason(), totalUsage);
             }
-            if (!allowTools) {
-                throw new ClientApiException(503, ClientCodes.UPSTREAM_ERROR, "模型重复请求工具");
+            if (!allowWebSearch || !runtime.usesDeepSeekWebSearch()) {
+                throw new ClientApiException(503, ClientCodes.UPSTREAM_ERROR,
+                        "模型返回了未启用的工具调用");
             }
 
             boolean limitReached = rounds >= properties.getChat().getMaxToolRounds();
             if (limitReached) {
-                appendToolMessages(messages, completion.getContent(), toolCalls, true);
-                allowTools = false;
+                appendToolMessages(messages, completion.getContent(), toolCalls, true, runtime);
+                allowWebSearch = false;
             } else {
                 rounds++;
-                appendToolMessages(messages, completion.getContent(), toolCalls, false);
-                checkContextBudget(messages, maxTokens, requestId);
+                appendToolMessages(messages, completion.getContent(), toolCalls, false, runtime);
+                checkContextBudget(messages, maxTokens, runtime, requestId);
             }
         }
     }
 
     private void appendToolMessages(List<ChatMessage> messages, String assistantContent,
-                                    List<ChatToolCall> toolCalls, boolean limitReached) {
+                                    List<ChatToolCall> toolCalls, boolean limitReached,
+                                    ChatModelRuntime runtime) {
         ChatMessage assistant = new ChatMessage();
         assistant.setRole("assistant");
         assistant.setContent(assistantContent == null || assistantContent.isEmpty()
@@ -407,7 +417,7 @@ public class ChatService {
             } else if (i >= maxCalls) {
                 result = errorJson("单轮工具调用数量超过上限。");
             } else {
-                result = executeTool(call);
+                result = executeTool(call, runtime);
             }
             ChatMessage tool = new ChatMessage();
             tool.setRole("tool");
@@ -417,13 +427,13 @@ public class ChatService {
         }
     }
 
-    private String executeTool(ChatToolCall call) {
+    private String executeTool(ChatToolCall call, ChatModelRuntime runtime) {
         if (call == null || call.getFunction() == null
                 || isBlank(call.getFunction().getName())) {
             return errorJson("工具调用参数无效。");
         }
         return webSearchService.execute(call.getFunction().getName(),
-                call.getFunction().getArguments());
+                call.getFunction().getArguments(), runtime);
     }
 
     private List<ChatMessage> copyMessages(List<ChatMessage> source) {
@@ -472,7 +482,7 @@ public class ChatService {
         private String errorMessage;
     }
 
-    private ChatOutcome replay(ClientRequestRecord record) {
+    private ChatOutcome replay(ClientRequestRecord record, ChatModelRuntime runtime) {
         if (ClientRequestRecord.STATE_COMPLETED.equals(record.getState())) {
             JsonNode result = null;
             if (record.getResultJson() != null) {
@@ -483,7 +493,7 @@ public class ChatService {
                 }
             }
             int status = record.getHttpStatus() == null ? 200 : record.getHttpStatus();
-            return ChatOutcome.replay(status, result, properties.getChat().getSpaceId());
+            return ChatOutcome.replay(status, result, runtime.getPolicyVersion());
         }
         if (ClientRequestRecord.STATE_FAILED.equals(record.getState())) {
             int status = record.getHttpStatus() == null ? 503 : record.getHttpStatus();
@@ -547,12 +557,12 @@ public class ChatService {
         }
     }
 
-    private boolean allowTools(ChatRequest request) {
-        return "answer".equals(request.getPurpose()) && webSearchService.isAvailable();
+    private boolean allowWebSearch(ChatRequest request, ChatModelRuntime runtime) {
+        return "answer".equals(request.getPurpose()) && webSearchService.isAvailable(runtime);
     }
 
-    private int resolveMaxTokens(ChatRequest request) {
-        int upper = properties.getChat().getMaxOutputTokens();
+    private int resolveMaxTokens(ChatRequest request, ChatModelRuntime runtime) {
+        int upper = runtime.getMaxOutputTokens();
         int lower = Math.min(properties.getChat().getMinOutputTokens(), upper);
         Integer requested = request.getMaxTokens();
         if (requested != null) {
@@ -567,13 +577,15 @@ public class ChatService {
         return upper;
     }
 
-    private void checkContextBudget(ChatRequest request, int maxTokens, String requestId) {
-        checkContextBudget(request.getMessages(), maxTokens, requestId);
+    private void checkContextBudget(ChatRequest request, int maxTokens,
+                                    ChatModelRuntime runtime, String requestId) {
+        checkContextBudget(request.getMessages(), maxTokens, runtime, requestId);
     }
 
-    private void checkContextBudget(List<ChatMessage> messages, int maxTokens, String requestId) {
+    private void checkContextBudget(List<ChatMessage> messages, int maxTokens,
+                                    ChatModelRuntime runtime, String requestId) {
         int estimated = estimateTokens(messages);
-        if (estimated + maxTokens > properties.getChat().getContextBudget()) {
+        if (estimated + maxTokens > runtime.getContextBudget()) {
             throw new ClientApiException(400, ClientCodes.CONTEXT_TOO_LARGE,
                     "上下文超出模型预算，请缩短对话或摘要", requestId);
         }

@@ -1,6 +1,6 @@
 package com.example.atw.client.provider;
 
-import com.example.atw.client.config.ClientModelProperties;
+import com.example.atw.client.config.ChatModelRuntime;
 import com.example.atw.client.dto.ChatMessage;
 import com.example.atw.client.dto.ChatToolCall;
 import com.example.atw.client.dto.ChatUsage;
@@ -27,9 +27,6 @@ import java.util.Map;
 public class DeepSeekClient {
 
     @Autowired
-    private ClientModelProperties properties;
-
-    @Autowired
     private HttpJsonClient http;
 
     @Autowired
@@ -41,12 +38,12 @@ public class DeepSeekClient {
     @Autowired
     private WebSearchService webSearchService;
 
-    public Completion complete(List<ChatMessage> messages, int maxTokens, boolean allowTools) {
-        Map<String, Object> body = buildBody(messages, false, maxTokens, allowTools);
+    public Completion complete(List<ChatMessage> messages, int maxTokens,
+                               boolean allowWebSearch, ChatModelRuntime runtime) {
+        Map<String, Object> body = buildBody(runtime, messages, false, maxTokens, allowWebSearch);
         HttpJsonClient.JsonResult result = http.postJson(
-                endpoint(), headers(), body,
-                properties.getDeepseek().getConnectTimeoutMs(),
-                properties.getDeepseek().getReadTimeoutMs());
+                endpoint(runtime), headers(runtime), body,
+                runtime.getConnectTimeoutMs(), runtime.getReadTimeoutMs());
         if (result.getStatus() >= 400) {
             throw mapProviderError(result.getStatus(), result.getBody());
         }
@@ -86,12 +83,11 @@ public class DeepSeekClient {
     }
 
     public StreamHandle openStream(List<ChatMessage> messages, String generationId,
-                                   int maxTokens, boolean allowTools) {
-        Map<String, Object> body = buildBody(messages, true, maxTokens, allowTools);
+                                   int maxTokens, boolean allowWebSearch, ChatModelRuntime runtime) {
+        Map<String, Object> body = buildBody(runtime, messages, true, maxTokens, allowWebSearch);
         HttpJsonClient.StreamResult result = http.postStream(
-                endpoint(), headers(), body,
-                properties.getDeepseek().getConnectTimeoutMs(),
-                properties.getDeepseek().getReadTimeoutMs());
+                endpoint(runtime), headers(runtime), body,
+                runtime.getConnectTimeoutMs(), runtime.getReadTimeoutMs());
         if (!result.isSuccess()) {
             throw mapProviderError(result.getStatus(), result.getErrorBody());
         }
@@ -177,10 +173,10 @@ public class DeepSeekClient {
         }
     }
 
-    private Map<String, Object> buildBody(List<ChatMessage> messages, boolean stream,
-                                          int maxTokens, boolean allowTools) {
+    private Map<String, Object> buildBody(ChatModelRuntime runtime, List<ChatMessage> messages,
+                                          boolean stream, int maxTokens, boolean allowWebSearch) {
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("model", properties.getDeepseek().getModel());
+        body.put("model", runtime.getModel());
         body.put("stream", stream);
         List<Map<String, Object>> providerMessages = new ArrayList<>();
         for (ChatMessage message : messages) {
@@ -203,9 +199,13 @@ public class DeepSeekClient {
         }
         body.put("messages", providerMessages);
         body.put("max_tokens", maxTokens);
-        if (allowTools && webSearchService.isAvailable()) {
-            body.put("tools", webSearchService.definitions());
-            body.put("tool_choice", "auto");
+        if (allowWebSearch && webSearchService.isAvailable(runtime)) {
+            if (runtime.usesQwenWebSearch()) {
+                body.put("enable_search", true);
+            } else if (runtime.usesDeepSeekWebSearch()) {
+                body.put("tools", webSearchService.definitions());
+                body.put("tool_choice", "auto");
+            }
         }
         return body;
     }
@@ -279,18 +279,18 @@ public class DeepSeekClient {
         return toolCalls;
     }
 
-    private Map<String, String> headers() {
+    private Map<String, String> headers(ChatModelRuntime runtime) {
         Map<String, String> headers = new LinkedHashMap<>();
-        headers.put("Authorization", "Bearer " + properties.getDeepseek().getApiKey());
+        headers.put("Authorization", "Bearer " + runtime.getApiKey());
         return headers;
     }
 
-    private String endpoint() {
-        String base = properties.getDeepseek().getBaseUrl();
+    private String endpoint(ChatModelRuntime runtime) {
+        String base = runtime.getBaseUrl();
         while (base.endsWith("/")) {
             base = base.substring(0, base.length() - 1);
         }
-        return base + "/chat/completions";
+        return base + runtime.getChatPath();
     }
 
     private ChatUsage parseUsage(JsonNode node) {

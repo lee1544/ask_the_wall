@@ -1094,6 +1094,13 @@ textarea:disabled {
   gap: 7px;
 }
 
+.cell-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+}
+
 .code-cell code {
   padding: 4px 7px;
   border-radius: 6px;

@@ -93,7 +93,8 @@ public class LicenseFilter extends OncePerRequestFilter {
         return uri.equals("/api/users") || uri.startsWith("/api/users/")
                 || uri.equals("/api/roles") || uri.startsWith("/api/roles/")
                 || uri.equals("/api/permissions") || uri.startsWith("/api/permissions/")
-                || uri.equals("/api/organizations") || uri.startsWith("/api/organizations/");
+                || uri.equals("/api/organizations") || uri.startsWith("/api/organizations/")
+                || uri.equals("/api/model-configs") || uri.startsWith("/api/model-configs/");
     }
 
     private void reject(HttpServletRequest request, HttpServletResponse response,

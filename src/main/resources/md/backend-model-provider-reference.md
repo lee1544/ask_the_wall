@@ -8,17 +8,17 @@
 
 | 服务端能力 | 模型标识 | 配置要求 |
 | --- | --- | --- |
-| 对话、智能体、翻译、调试、知识库问答、摘要 | `deepseek-flash` | 当前配置基线；地址 `https://api.deepseek.com`；有效性待联调确认 |
+| 对话、智能体、翻译、调试、知识库问答、摘要 | `deepseek-flash`（默认） | 默认地址 `https://api.deepseek.com`；可在管理后台切换 OpenAI 兼容模型，实际组合以启用配置为准 |
 | 语音识别 ASR | `qwen3-asr-flash` | 百炼 |
 | 语音合成 TTS | `qwen3-tts-flash` | 百炼，默认音色 `Cherry` |
 | 静态头像生成 | `wan2.7-image` | 百炼，单次一张、2K |
 | 文本向量 | `text-embedding-v4` | 百炼，1024 维 dense |
 
-对话模型启用联网时，还会调用 DeepSeek 原生 Search/Fetch 工具，见 3.1 节。
+对话模型启用联网时，可按 `webSearchMode` 使用 DeepSeek 原生 Search/Fetch 工具或千问 `enable_search` 内置联网，见 3.1 节。
 
-百炼初始配置采用北京地域、业务空间 ID 为空，公共域名 `https://dashscope.aliyuncs.com`。四项百炼能力可共用该地域的一个服务端密钥；对话连接使用独立密钥。所有密钥由服务端保存和管理，不向客户端返回。
+百炼初始配置采用北京地域、业务空间 ID 为空，公共域名 `https://dashscope.aliyuncs.com`。四项百炼能力可共用该地域的一个服务端密钥；对话连接使用独立密钥。所有密钥由服务端运行环境管理，不向客户端返回。
 
-**待确认项：** 对话模型与地址来自现有配置记录，尚不能作为其可用性的证明。服务端在联调环境验证该组合；如供应商不支持此模型标识，需双方确认实际可用模型，不能静默替换。本期不要求实现 `gpt-4.1-mini` 备用路由或自动切换供应商。
+**模型配置：** 管理后台 `/admin/models.html` 支持多套 OpenAI 兼容配置，同一时间仅一套生效。配置保存 `baseUrl`、模型名、对话路径、预算、超时和 `apiKeyEnv`，不保存 API Key 明文；服务端优先从同名环境变量读取密钥，`DEEPSEEK_API_KEY` / `BAILIAN_API_KEY` 未设置时分别回退到 `client.deepseek.api-key` / `client.bailian.api-key`。无启用配置时回退到 `client.deepseek.*`。真实供应商组合仍需在测试环境验证，不能静默替换模型标识。
 
 模型与音色由超级管理员配置，普通业务请求不能覆盖；启用状态通过 /capabilities 返回。服务端须实际完成配置与权限验证后再开放对应能力。
 
@@ -43,7 +43,7 @@
 
 ## 3. 对话调用
 
-对话基线 URL 为 `https://api.deepseek.com/chat/completions`。通用规则是去掉配置 baseUrl 的末尾斜杠，再追加 `/chat/completions`；配置已有 `/v1` 时保留，不能强行补上或删掉。
+对话基线 URL 为 `https://api.deepseek.com/chat/completions`。实际 URL 由启用配置的 `baseUrl` 去掉末尾斜杠后拼接 `chatPath`（默认 `/chat/completions`）得到；配置已有 `/v1` 时保留，不能强行补上或删掉。
 
 普通请求示例（messages 内容为合成示例）：
 
@@ -62,15 +62,34 @@
 
 客户端已将系统提示词、知识片段与历史整理为 messages。服务端按顺序传给模型，不重复检索、摘要或拼接提示词，也不按业务 ID 查询知识库。
 
-`temperature`、`top_p`、`seed` 与惩罚项不额外设置，使用供应商默认值。输出预算按 /capabilities 公布的策略执行：基准 maxOutputTokens 为 8192；普通回答未指定 max_tokens 时向供应商发送策略上限，指定时不得超过上限。摘要使用同一模型，stream=false，max_tokens 默认 768，且不超过策略上限。上方 JSON 只展示模型和消息映射，实际请求应补入经限额校验的 max_tokens。
+`temperature`、`top_p`、`seed` 与惩罚项不额外设置，使用供应商默认值。输出预算按 /capabilities 公布的策略执行：`maxOutputTokens` 来自当前启用配置（默认 8192）；普通回答未指定 max_tokens 时向供应商发送策略上限，指定时不得超过上限。摘要使用同一模型，stream=false，max_tokens 默认 768，且不超过策略上限。上方 JSON 只展示模型和消息映射，实际请求应补入经限额校验的 max_tokens。
 
-非流式读取 `choices[0].message.content`、可选 `usage`；`choices[0].finish_reason === "length"` 表示截断。流式读取 `data:` SSE 帧中的 `choices[0].delta.content`，终帧处理 finish_reason 和 usage，以 `[DONE]` 结束。空文本、供应商错误帧及异常中断不能包装成成功。上游超时基准 300 秒，回答累计最多 200,000 字符。
+非流式读取 `choices[0].message.content`、可选 `usage`；`choices[0].finish_reason === "length"` 表示截断。流式读取 `data:` SSE 帧中的 `choices[0].delta.content`，终帧处理 finish_reason 和 usage，以 `[DONE]` 结束。空文本、供应商错误帧及异常中断不能包装成成功。上游读取超时来自当前启用配置（默认 300 秒），回答累计最多 200,000 字符。
 
 服务端按客户端 API 规范返回 choices 结构；不额外包装业务会话对象或自定义页面事件。
 
 ### 3.1 联网搜索与网页抓取
 
-启用联网能力时，answer 对话仍走 DeepSeek Chat Completions，但请求体额外携带 `tools`，并设置 `tool_choice: "auto"`，由模型决定是否调用工具。仅在 purpose=answer、服务端配置了 `client.deepseek.api-key` 且 `client.web-search.enabled=true` 时发送工具定义；摘要请求不发送工具。工具调用和搜索结果不向客户端暴露。
+联网总开关为 `webSearchEnabled`，实现方式由 `webSearchMode` 决定：
+
+- `DEEPSEEK_TOOLS`：answer 对话请求体携带 `tools`，并设置 `tool_choice: "auto"`，由模型决定是否调用服务端工具。工具调用和搜索结果不向客户端暴露。
+- `QWEN_ENABLE_SEARCH`：answer 对话请求体携带 `"enable_search": true`，不发送 `tools`/`tool_choice`，由千问直接完成检索并返回最终答案。
+
+仅在 purpose=answer、当前启用配置的 `webSearchEnabled=true`、环境变量中配置了 `apiKeyEnv` 对应密钥且 `client.web-search.enabled=true` 时启用；摘要请求不启用联网。千问模式使用 OpenAI 兼容地址，例如 `https://dashscope.aliyuncs.com/compatible-mode/v1`，模型 `qwen-plus`。若千问模式意外返回 `tool_calls`，服务端按未启用工具调用处理并返回错误，不执行搜索。
+
+千问模式请求体片段：
+
+```json
+{
+  "model": "qwen-plus",
+  "stream": true,
+  "enable_search": true,
+  "messages": [
+    {"role": "system", "content": "你是一个智能助手。"},
+    {"role": "user", "content": "最近有哪些 AI 新闻？"}
+  ]
+}
+```
 
 工具定义：
 
@@ -79,7 +98,7 @@
 | `web_search` | `query` 必填，最多 128 字符；`count` 可选，1–5；`ori_question` 可选，最多 128 字符 | 搜索实时信息，支持常见搜索操作符 |
 | `web_fetch` | `url` 必填，HTTP/HTTPS、最多 8192 字符、禁止用户名密码 | 抓取指定网页的 Markdown 正文 |
 
-搜索与抓取使用 DeepSeek 原生工具接口。将 `DEEPSEEK_BASE_URL` 去掉末尾斜杠；若已以 `/v1` 结尾，则分别追加 `/tools/search`、`/tools/fetch`，否则追加 `/v1/tools/search`、`/v1/tools/fetch`。请求头使用对话同一服务端密钥的 `Authorization: Bearer <key>`，超时基准为连接 5 秒、读取 30 秒。
+搜索与抓取使用 DeepSeek 原生工具接口。将当前启用配置的 `baseUrl` 去掉末尾斜杠；若已以 `/v1` 结尾，则分别追加 `/tools/search`、`/tools/fetch`，否则追加 `/v1/tools/search`、`/v1/tools/fetch`。请求头使用同一配置 `apiKeyEnv` 对应密钥的 `Authorization: Bearer <key>`，超时基准为连接 5 秒、读取 30 秒。
 
 搜索请求示例：
 
@@ -89,7 +108,7 @@
 
 搜索响应读取 `results[]`，每项可含 `title/url/snippet/summary/date/site_name/rerank_score/authority`。只接受 HTTP/HTTPS 结果；摘要优先取 `summary`，缺失时取 `snippet`，最多 800 字符；标题最多 200 字符。抓取响应读取 `title/content`，正文按 Markdown 保留换行，最多 8000 字符。
 
-工具循环最多 4 轮，每轮最多执行 3 个工具调用；超出数量或轮次的调用以工具错误 JSON 返回，不再访问搜索接口。搜索/抓取失败也以工具错误 JSON 作为 `role=tool` 消息返回，由模型基于已有信息继续回答，不能把工具失败直接包装成成功答案。发送给供应商的历史消息中，assistant 的 `tool_calls` 与对应 `tool_call_id` 必须原样保留。
+DeepSeek 模式工具循环最多 4 轮，每轮最多执行 3 个工具调用；超出数量或轮次的调用以工具错误 JSON 返回，不再访问搜索接口。搜索/抓取失败也以工具错误 JSON 作为 `role=tool` 消息返回，由模型基于已有信息继续回答，不能把工具失败直接包装成成功答案。发送给供应商的历史消息中，assistant 的 `tool_calls` 与对应 `tool_call_id` 必须原样保留。
 
 ## 4. ASR：qwen3-asr-flash
 
@@ -253,4 +272,4 @@ HTTP 成功也要检查供应商 JSON 的 code 字段。供应商密钥失效向
 - 五类模型能力遵守客户端 API 规范，尤其是 requestId、generationId、版本校验及 24 小时恢复期。
 - 返回给客户端的是业务响应和受保护的媒体地址，不是供应商原始响应。
 - 分段与媒体验证可通过独立用例验收，不依赖客户端源码。
-- 对话模型/地址组合及地域权限在真实测试环境验证；管理配置 API 另行对接。
+- 对话模型/地址组合及地域权限在真实测试环境验证；管理配置 API 已提供，但非 DeepSeek 供应商的实际兼容性仍需联调。

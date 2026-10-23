@@ -204,11 +204,54 @@ CREATE TABLE IF NOT EXISTS `t_client_image_job`
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4 COMMENT ='客户端头像生成任务';
 
+-- 11. 对话模型配置（服务层保证同一时间仅一条 active=1）
+CREATE TABLE IF NOT EXISTS `t_chat_model_config`
+(
+    `id`                  BIGINT       NOT NULL AUTO_INCREMENT,
+    `config_name`         VARCHAR(100) NOT NULL,
+    `base_url`            VARCHAR(255) NOT NULL,
+    `model_name`          VARCHAR(120) NOT NULL,
+    `api_key_env`         VARCHAR(100) NOT NULL DEFAULT 'DEEPSEEK_API_KEY',
+    `chat_path`           VARCHAR(120) NOT NULL DEFAULT '/chat/completions',
+    `context_budget`      INT          NOT NULL DEFAULT 262144,
+    `max_output_tokens`   INT          NOT NULL DEFAULT 8192,
+    `connect_timeout_ms`  INT          NOT NULL DEFAULT 10000,
+    `read_timeout_ms`     INT          NOT NULL DEFAULT 300000,
+    `web_search_enabled`  TINYINT      NOT NULL DEFAULT 0,
+    `web_search_mode`     VARCHAR(32)  NOT NULL DEFAULT 'DEEPSEEK_TOOLS',
+    `active`              TINYINT      NOT NULL DEFAULT 0,
+    `revision`            INT          NOT NULL DEFAULT 1,
+    `remark`              VARCHAR(255)          DEFAULT NULL,
+    `create_time`         DATETIME              DEFAULT CURRENT_TIMESTAMP,
+    `update_time`         DATETIME              DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_chat_model_config_name` (`config_name`),
+    KEY `idx_chat_model_config_active` (`active`)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4 COMMENT ='对话模型配置';
+
+-- 兼容已创建的旧表：补充千问联网模式字段
+SET @web_search_mode_exists = (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 't_chat_model_config'
+      AND COLUMN_NAME = 'web_search_mode'
+);
+SET @web_search_mode_ddl = IF(
+    @web_search_mode_exists = 0,
+    'ALTER TABLE `t_chat_model_config` ADD COLUMN `web_search_mode` VARCHAR(32) NOT NULL DEFAULT ''DEEPSEEK_TOOLS'' AFTER `web_search_enabled`',
+    'SELECT 1'
+);
+PREPARE web_search_mode_stmt FROM @web_search_mode_ddl;
+EXECUTE web_search_mode_stmt;
+DEALLOCATE PREPARE web_search_mode_stmt;
+
 -- =============================================================
 -- 四、初始数据（幂等，可重复执行）
 -- =============================================================
 
--- 11. 初始权限
+-- 12. 初始权限
 INSERT IGNORE INTO `t_permission` (`permission_code`, `permission_name`, `status`)
 VALUES ('user:view', '查看用户', 1),
        ('user:create', '创建用户', 1),
@@ -226,13 +269,15 @@ VALUES ('user:view', '查看用户', 1),
        ('role:delete', '删除角色', 1),
        ('role:assign-permission', '分配权限', 1),
        ('license:create-code', '生成/管理激活码', 1),
-       ('license:view-code', '查看激活码', 1);
+       ('license:view-code', '查看激活码', 1),
+       ('model:view', '查看模型配置', 1),
+       ('model:update', '管理模型配置', 1);
 
--- 12. 默认组织
+-- 13. 默认组织
 INSERT IGNORE INTO `t_organization` (`org_code`, `org_name`, `description`, `status`)
 VALUES ('DEFAULT_ORG', '默认组织', '系统默认组织', 1);
 
--- 13. 全局超级管理员角色（org_id 为空表示全局角色）
+-- 14. 全局超级管理员角色（org_id 为空表示全局角色）
 -- 注意：MySQL 唯一索引中 NULL 不相等，这里用 NOT EXISTS 防止重复插入
 INSERT INTO `t_role` (`role_code`, `role_name`, `description`, `org_id`, `status`)
 SELECT 'SUPER_ADMIN', '超级管理员', '系统全局超级管理员，可创建组织和分配管理员', NULL, 1
@@ -242,7 +287,7 @@ WHERE NOT EXISTS (SELECT 1
                   WHERE `role_code` = 'SUPER_ADMIN'
                     AND `org_id` IS NULL);
 
--- 14. 为超级管理员角色分配所有启用权限
+-- 15. 为超级管理员角色分配所有启用权限
 INSERT IGNORE INTO `t_role_permission` (`role_id`, `permission_id`)
 SELECT r.`id`, p.`id`
 FROM `t_role` r
@@ -250,13 +295,13 @@ FROM `t_role` r
 WHERE r.`role_code` = 'SUPER_ADMIN'
   AND r.`org_id` IS NULL;
 
--- 15. 默认超级管理员用户（密码：admin123，BCrypt 加密）
+-- 16. 默认超级管理员用户（密码：admin123，BCrypt 加密）
 INSERT IGNORE INTO `t_user` (`username`, `password`, `real_name`, `org_id`, `status`)
 SELECT 'admin', '$2a$12$ovaL7JxZbkPDkqJdzTjvU.TMD3GRw3IXy3pfGfxrYx8vG23NqlgiK', '超级管理员', o.`id`, 1
 FROM `t_organization` o
 WHERE o.`org_code` = 'DEFAULT_ORG';
 
--- 16. 为默认管理员分配超级管理员角色
+-- 17. 为默认管理员分配超级管理员角色
 INSERT IGNORE INTO `t_user_role` (`user_id`, `role_id`)
 SELECT u.`id`, r.`id`
 FROM `t_user` u

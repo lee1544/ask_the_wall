@@ -1,6 +1,6 @@
 # Ask The Wall 后端
 
-基于 `content_review_platform` 搭建的 Spring Boot 后端，包含**用户权限模块**（登录认证、组织/用户/角色/权限管理）、**License 授权**（服务端签发 + 客户端机器码绑定），以及供 Electron 客户端调用的 **`/api/v1/client` 模型代理接口**：DeepSeek 对话/摘要、百炼 ASR/TTS/头像/向量。供应商地址、密钥和底层模型名只在服务端保存，不下发客户端。
+基于 `content_review_platform` 搭建的 Spring Boot 后端，包含**用户权限模块**（登录认证、组织/用户/角色/权限管理）、**License 授权**（服务端签发 + 客户端机器码绑定），以及供 Electron 客户端调用的 **`/api/v1/client` 模型代理接口**：OpenAI 兼容对话/摘要（默认 DeepSeek）、百炼 ASR/TTS/头像/向量。供应商地址、密钥和底层模型名只在服务端使用，不下发客户端；对话模型可在管理后台配置并切换。
 
 ## 技术栈
 
@@ -11,7 +11,7 @@
 | Spring Security + JWT (jjwt) | 0.9.1 |
 | Spring Data JPA | 2.6.13 |
 | Druid / MySQL | 1.2.20 / 8.0.33 |
-| DeepSeek API | 对话 / 摘要 |
+| OpenAI 兼容 Chat Completions | 对话 / 摘要（默认 DeepSeek） |
 | 阿里云百炼（DashScope） | ASR / TTS / 头像 / 向量 |
 | Lombok | - |
 
@@ -20,7 +20,7 @@
 1. 初始化数据库：
 
    ```bash
-   # 唯一部署脚本：用户权限 + License 激活码 + 客户端模型接口表
+   # 唯一部署脚本：用户权限 + License 激活码 + 对话模型配置 + 客户端模型接口表
    # 可重复执行；全新部署和已有旧库都执行这一个文件
    mysql -u root -p ask_the_wall < src/main/resources/static/system_init.sql
    ```
@@ -36,6 +36,8 @@
    JWT_SECRET=请改成足够长的随机字符串
    DEEPSEEK_API_KEY=sk-...
    BAILIAN_API_KEY=sk-...
+   # 管理后台新增其它 OpenAI 兼容模型时，在这里注入对应环境变量：
+   # OPENAI_API_KEY=sk-...
    ```
 
    客户端联调其他功能时可临时关闭 License 强制校验：
@@ -77,13 +79,13 @@ src/main/java/com/example/atw
 ├── repository/     JPA 仓储
 ├── service/        Auth / User / Organization / Role / Permission / UserRole / License / LicenseKey / ActivationCode
 ├── utils/          JwtTokenUtil、UserContextUtil、LicenseCryptoUtil、MachineCodeUtil
-├── web/            Auth / User / Organization / Role / License 控制器
+├── web/            Auth / User / Organization / Role / License / 模型配置控制器
 └── client/         客户端模型代理
     ├── web/        Chat / Voice / Avatar / Embedding / Media / Capabilities 控制器
-    ├── service/    对话、语音、头像、向量、媒体、请求恢复与清理
-    ├── provider/   DeepSeek、百炼、HTTP/SSE 客户端
+    ├── service/    对话、模型配置、语音、头像、向量、媒体、请求恢复与清理
+    ├── provider/   OpenAI 兼容客户端、百炼、HTTP/SSE 客户端
     ├── dto/        客户端请求/响应对象
-    ├── entity/     t_client_request / t_client_media / t_client_image_job
+    ├── entity/     t_client_request / t_client_media / t_client_image_job / t_chat_model_config
     └── support/    WAV/PNG 校验、OSS 地址校验、哈希/时间工具
 ```
 
@@ -250,11 +252,33 @@ X-License: ATW1.xxx.yyy
 - `/admin/permissions.html`：权限管理，查看权限编码、分类、角色引用情况，并启用/禁用权限。
 - `/admin/roles.html`：角色管理，支持创建/编辑/删除角色，以及按权限分组勾选分配权限。
 - `/admin/users.html`：用户管理，支持按姓名/状态筛选、新建、编辑姓名、启停、分配角色、重置密码和删除。
+- `/admin/models.html`：对话模型配置，支持多套 OpenAI 兼容配置、测试连接、启用/停用切换和删除；
+  API Key 只保存环境变量名，不保存密钥本身。
 - 管理页只调用 JWT 鉴权的接口；`/api/license/**` 以及后台使用的
-  `/api/users|roles|permissions|organizations/**` 已由 `LicenseFilter` 豁免 `X-License`，
+  `/api/users|roles|permissions|organizations|model-configs/**` 已由 `LicenseFilter` 豁免 `X-License`，
   因此进入管理后台不需要先持有 License。
 - 静态页面允许匿名加载，页面内的 API 调用仍受 JWT 与 `@RequirePermission` 保护。
 - 导航会按当前账号权限自动隐藏不可访问的模块；接口权限仍以服务端校验为准。
+
+### 对话模型配置
+
+管理后台 `/admin/models.html` 管理 `t_chat_model_config`，同一时间只有一个启用配置。
+新增配置后默认不启用，需要点击“启用”才会切换；没有启用配置时回退到
+`application.properties` 的 `client.deepseek.*` / `client.chat.*` 默认值。
+
+配置项：
+
+- 配置名称、模型名称、接口根地址（如 `https://api.deepseek.com`）、对话路径（默认 `/chat/completions`）。
+- `apiKeyEnv`：API Key 环境变量名，例如 `DEEPSEEK_API_KEY`、`BAILIAN_API_KEY`、`OPENAI_API_KEY`；
+  数据库不保存密钥，部署时通过环境变量注入。`DEEPSEEK_API_KEY` / `BAILIAN_API_KEY` 未设置时，
+  分别兼容读取 `client.deepseek.api-key` / `client.bailian.api-key` 作为回退。
+- 上下文预算、最大输出 Token、连接/读取超时。
+- `webSearchEnabled`：联网搜索总开关。
+- `webSearchMode`：联网实现方式。`DEEPSEEK_TOOLS` 使用服务端 Search/Fetch 工具循环；`QWEN_ENABLE_SEARCH` 在千问请求体中传 `enable_search: true`，由千问直接检索，不再发送工具定义。
+
+权限：`model:view` 查看，`model:update` 新增/编辑/测试/启用/删除。
+启用或修改配置会自动更新 `chat.spaceId`（`chat-model-{id}-{revision}`），客户端下一次能力查询即可获取新版本；
+使用旧版本的请求会收到 `409 CONFIG_CHANGED`。管理后台“测试”会用当前环境变量发起一次最小非流式请求。
 
 ### Electron 客户端接入
 
@@ -452,6 +476,8 @@ fetch(url, { headers: { 'X-License': storedLicenseKey, 'Authorization': `Bearer 
 | `role:assign-permission` | 分配权限 |
 | `license:create-code` | 生成/管理激活码 |
 | `license:view-code` | 查看激活码 |
+| `model:view` | 查看对话模型配置 |
+| `model:update` | 新增、编辑、测试、启用、删除模型配置 |
 
 ## 角色模型
 
@@ -463,7 +489,8 @@ fetch(url, { headers: { 'X-License': storedLicenseKey, 'Authorization': `Bearer 
 
 ## 客户端模型接口（/api/v1/client）
 
-统一由后端调用 DeepSeek / 百炼，供应商地址、密钥和底层模型名不下发客户端。详细字段与边界见
+统一由后端调用 OpenAI 兼容对话模型（默认 DeepSeek）和百炼，供应商地址、密钥和底层模型名不下发客户端。
+对话模型由管理后台配置，`capabilities.chat.spaceId` 会随启用配置变化。详细字段与边界见
 `src/main/resources/md/backend-api-minimal-contract.md`，供应商参考见
 `src/main/resources/md/backend-model-provider-reference.md`。
 
@@ -760,10 +787,18 @@ CLIENT_MEDIA_DIR=./data/media
 LICENSE_ENFORCE=true
 ```
 
-联网搜索复用 `DEEPSEEK_API_KEY`，不需要单独配置搜索密钥；关闭时设 `WEB_SEARCH_ENABLED=false`。其余限制/版本见 `application.properties` 的 `client.*` 段。管理端如调整模型、音色或
-分段规则，必须同步更新 `client.chat.space-id`、`client.tts.config-version`、
-`client.image.config-version`、`client.embedding.space-id`，否则客户端会收到
-`CONFIG_CHANGED` / `INDEX_SPACE_CHANGED`。
+联网搜索复用当前对话模型的 API Key，不需要单独配置搜索密钥；关闭时设 `WEB_SEARCH_ENABLED=false`，
+或在模型配置中关闭 `webSearchEnabled`。DeepSeek 使用原生 Search/Fetch 工具，千问使用
+`enable_search` 内置联网；模式由 `webSearchMode` 选择。其余限制/版本见 `application.properties` 的 `client.*` 段。
+
+对话模型有两种来源：
+
+- 管理后台存在启用配置时，使用数据库中的模型、地址、预算、超时和 `apiKeyEnv`；
+  修改/启用会自动产生新的 `spaceId`，无需手工改 `client.chat.space-id`。
+- 没有启用配置时，回退到 `client.deepseek.*` 和 `client.chat.*`；此时手工调整默认模型仍需同步
+  `client.chat.space-id`。音色、头像、向量仍按 `client.tts.config-version`、
+  `client.image.config-version`、`client.embedding.space-id` 管理版本，否则客户端会收到
+  `CONFIG_CHANGED` / `INDEX_SPACE_CHANGED`。
 
 ### 数据库
 
@@ -773,7 +808,7 @@ LICENSE_ENFORCE=true
 mysql -u root -p ask_the_wall < src/main/resources/static/system_init.sql
 ```
 
-`system_init.sql` 是唯一部署脚本，可重复执行，已包含客户端表：`t_client_request`、`t_client_media`、`t_client_image_job`。
+`system_init.sql` 是唯一部署脚本，可重复执行，已包含客户端表：`t_chat_model_config`、`t_client_request`、`t_client_media`、`t_client_image_job`，以及模型配置权限。
 
 ### 本地已验证
 

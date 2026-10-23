@@ -34,7 +34,7 @@
 | POST | /devices/current/refresh | 检查当前设备授权 |
 | POST | /devices/current/deactivate | 解除当前设备绑定 |
 
-模型配置仅对超级管理员开放，不向普通客户端下发供应商地址或密钥。管理后台的配置 CRUD 不属于本文 19 项客户端接口，须单独约定。
+模型配置仅对拥有 `model:view` / `model:update` 权限的管理员开放，不向普通客户端下发供应商地址或密钥。管理后台的配置 API（`/api/model-configs`）不属于本文 19 项客户端接口，使用 JWT 鉴权。
 
 ### 1.1 免 JWT 接口
 
@@ -102,7 +102,7 @@
     "contextBudget": 262144,
     "reservedOutputTokens": 8192,
     "maxOutputTokens": 8192,
-    "spaceId": "chat-policy-v3",
+    "spaceId": "chat-model-12-3",
     "maxRequestBytes": 4194304,
     "maxMessages": 1024,
     "maxResponseChars": 200000,
@@ -139,7 +139,7 @@
 }
 ```
 
-available 综合账号授权、业务启停和配置是否完整；没有权限返回 false，不让客户端猜测。该接口不执行付费模型连通测试，不能保证供应商此刻一定可调用；真实调用失败仍返回安全错误；不能返回演示答案或静默切换未约定的模型来伪装成功。voice.available 表示识别/合成至少一项可用，两个操作分别以 recognitionAvailable/synthesisAvailable 判断，不能仅用总开关误开启已禁用的操作。voice.defaultVoice 与 voice.voices 是服务端允许的音色列表；客户端只能从 voices 中选择，缺省使用 defaultVoice。chat.spaceId 在影响上下文摘要策略的模型/预算变化时更新；用于让客户端判断摘要缓存是否仍适用，不暴露底层模型名称。voice.configVersion 在影响音频内容的模型、音色列表或默认音色变化时更新，避免命中旧音色缓存。chat.webSearchAvailable 表示服务端已启用并在当前授权下可使用联网搜索，不代表客户端可以直接调用搜索接口；chat.maxToolRounds 是服务端单次回答允许的最大工具轮数。客户端不得因 webSearchAvailable=false 自行拼接“请联网”指令，服务端会按自身能力决定是否调用工具。
+available 综合账号授权、业务启停和配置是否完整；没有权限返回 false，不让客户端猜测。该接口不执行付费模型连通测试，不能保证供应商此刻一定可调用；真实调用失败仍返回安全错误；不能返回演示答案或静默切换未约定的模型来伪装成功。voice.available 表示识别/合成至少一项可用，两个操作分别以 recognitionAvailable/synthesisAvailable 判断，不能仅用总开关误开启已禁用的操作。voice.defaultVoice 与 voice.voices 是服务端允许的音色列表；客户端只能从 voices 中选择，缺省使用 defaultVoice。chat.spaceId 在影响上下文摘要策略的模型/预算变化时更新（启用或修改管理后台模型配置会自动产生 `chat-model-{id}-{revision}`）；用于让客户端判断摘要缓存是否仍适用，不暴露底层模型名称。voice.configVersion 在影响音频内容的模型、音色列表或默认音色变化时更新，避免命中旧音色缓存。chat.webSearchAvailable 表示服务端已启用并在当前授权下可使用联网搜索，不代表客户端可以直接调用搜索接口；chat.maxToolRounds 是服务端单次回答允许的最大工具轮数。客户端不得因 webSearchAvailable=false 自行拼接“请联网”指令，服务端会按自身能力决定是否调用工具。
 
 第一期在线调用模式下，/session 和 /capabilities 允许已登录但尚未激活/授权过期的用户访问，返回状态与 available=false，不因缺 License 阻止激活界面初始化。各个生成接口仍独立强制验证授权，available 不能代替鉴权。
 
@@ -167,7 +167,7 @@ embedding.spaceId 是后端生成的稳定、不透明向量空间标识，在�
 
 messages 至少 1 条，最多按 capabilities.chat.maxMessages；content 必须是非空字符串，保留用户原始空白，不把它当 JSON 指令解析。第一条为 system，后续仅 user/assistant，最后一条为本次 user；本期不接受客户端提交图片 content 数组或 tools/function calling。整个 JSON body 不超过 capabilities.chat.maxRequestBytes。max_tokens 存在时是正整数且不超过 maxOutputTokens，超限明确返回 400；低于 256 时按 256 执行，避免模型只返回空内容。
 
-服务端可在内部使用联网搜索工具：当 purpose=answer 且 capabilities.chat.webSearchAvailable=true 时，模型可自行决定调用 web_search 或 web_fetch，服务端最多执行 maxToolRounds 轮，工具结果仅用于生成最终回答，不通过客户端 API 暴露工具调用帧、搜索结果或供应商原始响应。摘要请求（purpose=summary）不启用工具。联网回答可能包含多次上游调用，客户端仍按同一 requestId/generationId 处理完成、失败与停止；usage 若返回则为各轮汇总值。是否联网由服务端和模型判断，客户端不能通过请求字段强制联网或指定搜索词。
+服务端可在内部使用联网搜索：当 purpose=answer 且 capabilities.chat.webSearchAvailable=true 时，服务端按当前模型配置的 webSearchMode 选择 DeepSeek 原生 Search/Fetch 工具循环或千问 `enable_search` 内置联网；DeepSeek 模式最多执行 maxToolRounds 轮。搜索过程、工具调用帧、搜索结果和供应商原始响应均不通过客户端 API 暴露。摘要请求（purpose=summary）不启用联网。联网回答可能包含多次上游调用，客户端仍按同一 requestId/generationId 处理完成、失败与停止；usage 若返回则为各轮汇总值。是否联网由服务端和模型判断，客户端不能通过请求字段强制联网或指定搜索词。
 
 purpose=summary 时 stream 必须为 false，max_tokens 默认 768 且受后端策略上限约束；answer 同时支持 stream=true/false。purpose 只影响分组和额度检查，不能用来选择任意供应商或绕过授权。
 
@@ -180,7 +180,7 @@ purpose=summary 时 stream 必须为 false，max_tokens 默认 768 且受后端�
   "requestId": "req-answer-001",
   "generationId": "gen-001",
   "purpose": "answer",
-  "expectedPolicyVersion": "chat-policy-v3",
+  "expectedPolicyVersion": "chat-model-12-3",
   "stream": true,
   "messages": [
     {"role": "system", "content": "你是一位专业翻译。将用户内容翻译成英文，保留原意。"},
@@ -588,10 +588,10 @@ license.status 枚举 active/inactive/expired/revoked；deviceAuthorization.stat
 以下内容采用本文默认值；如有调整，需要同步更新文档与联调示例：
 
 1. 接口前缀、账号来源、登录方式，以及设备指纹算法。本文规定指纹为 64 位十六进制摘要，但原始硬件信息、哈希算法、产品域和容错规则需双方确认；该问题未确定前不能完成设备绑定联调。
-2. 对话供应商地址与有效模型标识。供应商规范列出目前配置的 `https://api.deepseek.com` + `deepseek-flash`，该组合须通过测试账号验证后才能作为生产默认值。
+2. 对话供应商地址与有效模型标识。默认组合为 `https://api.deepseek.com` + `deepseek-flash`，可通过管理后台切换为其它 OpenAI 兼容配置；非默认组合须通过测试账号验证后才能作为生产配置。
 3. 请求恢复、结果与媒体保留期是否采用至少终态后 24 小时；各接口是否接受本文大小限制和超时。
 4. SSE 代理是否关闭缓冲；是否实现生成组取消及未知 generationId 的短期取消标记。
 5. 模型、音色和向量空间版本变更规则，以及稳定错误码。
-6. 管理后台的配置/权限 API 另行定义，由超级管理员使用；不混入普通客户端接口。
+6. 管理后台的配置/权限 API 由超级管理员使用；模型配置接口已提供，不混入普通客户端接口。
 
 服务端交付物：与本文一致的 OpenAPI、可用测试环境、测试账号与 License、已配置的模型服务，以及成功/失败/SSE/取消/断线恢复的联调样例。文档和模拟示例不代替真实服务验收。

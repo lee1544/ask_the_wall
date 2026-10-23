@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex,nofollow">
+  <title>模型配置 | Ask The Wall 管理后台</title>
+  <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./assets/admin.css">
+</head>
+<body class="admin-body">
+  <div class="app-shell">
+    <aside id="sidebar" class="sidebar">
+      <div class="sidebar-brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32" fill="none">
+            <path d="M5 7.5h22M5 16h22M5 24.5h22" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+            <path d="M10.5 7.5v17M21.5 7.5v17" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" opacity=".5"/>
+          </svg>
+        </span>
+        <div>
+          <strong>Ask The Wall</strong>
+          <span>Admin Console</span>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav" aria-label="主导航">
+        <p class="sidebar-nav-label">授权</p>
+        <a class="nav-item" href="./index.html" data-any-permission="license:view-code license:create-code">
+          <span class="nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M12 3l7 3v5c0 4.6-3 8.2-7 10-4-1.8-7-5.4-7-10V6l7-3z" stroke="currentColor" stroke-width="1.8"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+          <span>License 管理</span>
+        </a>
+        <p class="sidebar-nav-label">系统管理</p>
+        <a class="nav-item" href="./organizations.html" data-any-permission="org:view">
+          <span class="nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M4 20V8l8-5 8 5v12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 20v-6h6v6M8 10h.01M12 10h.01M16 10h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          </span>
+          <span>组织管理</span>
+        </a>
+        <a class="nav-item" href="./permissions.html" data-any-permission="role:view">
+          <span class="nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M14.5 9.5a4.5 4.5 0 11-3.2 7.7L4 21.5 2.5 20 4 18.5 2.5 17 5 14.5l1.5 1.5 3-3a4.5 4.5 0 015-3.5z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="16" cy="8" r="1.2" fill="currentColor"/></svg>
+          </span>
+          <span>权限管理</span>
+        </a>
+        <a class="nav-item" href="./roles.html" data-any-permission="role:view">
+          <span class="nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M12 3l2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.5-4.8 2.5.9-5.4-3.9-3.8 5.4-.8L12 3z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+          </span>
+          <span>角色管理</span>
+        </a>
+        <a class="nav-item" href="./users.html" data-any-permission="user:view">
+          <span class="nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="3.5" stroke="currentColor" stroke-width="1.8"/><path d="M5 20c.7-3.4 3.2-5.5 7-5.5s6.3 2.1 7 5.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          </span>
+          <span>用户管理</span>
+        </a>
+        <p class="sidebar-nav-label">模型管理</p>
+        <a class="nav-item is-active" href="./models.html" aria-current="page" data-any-permission="model:view">
+          <span class="nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><rect x="4" y="4" width="16" height="16" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 9h8M8 12h5M8 15h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          </span>
+          <span>模型配置</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-note">
+        <span class="note-dot" aria-hidden="true"></span>
+        <strong>密钥不落库</strong>
+        <p>配置只保存 API Key 的环境变量名，密钥由服务器运行环境提供。</p>
+      </div>
+
+      <div class="sidebar-user">
+        <span id="userAvatar" class="avatar">A</span>
+        <span class="sidebar-user-meta">
+          <strong id="sidebarUserName">-</strong>
+          <small id="sidebarUserOrg">-</small>
+        </span>
+        <button class="icon-btn sidebar-logout" type="button" aria-label="退出登录" title="退出登录" data-logout>
+          <svg viewBox="0 0 24 24" fill="none"><path d="M9 5H5.5A1.5 1.5 0 004 6.5v11A1.5 1.5 0 005.5 19H9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M14 8l4 4-4 4M18 12H9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+    </aside>
+    <button id="sidebarScrim" class="sidebar-scrim" type="button" aria-label="关闭菜单" hidden></button>
+
+    <div class="main-wrap">
+      <header class="topbar">
+        <button id="menuBtn" class="icon-btn menu-btn" type="button" aria-label="打开菜单">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>
+        <div class="topbar-title">
+          <p class="eyebrow">MODELS</p>
+          <h1>模型配置</h1>
+        </div>
+        <div class="topbar-actions">
+          <span class="user-chip">
+            <span class="avatar avatar-sm" id="topbarAvatar">A</span>
+            <span class="user-chip-text">
+              <strong id="topbarUserName">-</strong>
+              <small id="topbarUserOrg">-</small>
+            </span>
+          </span>
+          <button class="btn btn-ghost btn-sm" type="button" data-logout>退出登录</button>
+        </div>
+      </header>
+
+      <main class="content">
+        <div id="pageDenied" class="empty-state panel" hidden>
+          <span class="empty-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><rect x="5" y="10" width="14" height="10" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M8 10V7a4 4 0 018 0v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          </span>
+          <h2>没有模型配置权限</h2>
+          <p>当前账号缺少 <code>model:view</code> 权限，请联系超级管理员分配角色。</p>
+          <button class="btn btn-ghost" type="button" data-logout>切换账号</button>
+        </div>
+
+        <div id="pageContent">
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>对话模型</h2>
+                <p class="muted">同一时间仅一个配置生效。未配置时回退到 application.properties 的环境默认模型。</p>
+              </div>
+              <div class="panel-actions">
+                <button id="refreshBtn" class="btn btn-ghost btn-sm" type="button">
+                  <svg class="btn-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 11a8 8 0 10-2.3 5.7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M20 5v6h-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  刷新
+                </button>
+                <button id="createBtn" class="btn btn-primary" type="button" data-any-permission="model:update">
+                  <svg class="btn-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                  新增配置
+                </button>
+              </div>
+            </div>
+
+            <div class="table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>配置名称</th>
+                    <th>模型</th>
+                    <th>接口地址</th>
+                    <th>API Key 环境变量</th>
+                    <th>上下文 / 输出</th>
+                    <th>联网模式</th>
+                    <th>更新时间</th>
+                    <th class="th-actions">操作</th>
+                  </tr>
+                </thead>
+                <tbody id="modelTableBody"></tbody>
+              </table>
+            </div>
+
+            <div class="table-footer">
+              <div id="modelSummary" class="muted">加载中...</div>
+              <div id="modelHint" class="muted">切换配置后，客户端下一次能力查询会获取新的 spaceId。</div>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <div id="modelModal" class="modal" data-static-close hidden>
+    <div class="modal-card modal-card-wide" role="dialog" aria-modal="true" aria-labelledby="modelModalTitle">
+      <div class="modal-head">
+        <div>
+          <p class="eyebrow">MODEL CONFIG</p>
+          <h2 id="modelModalTitle">新增模型配置</h2>
+          <p class="muted">支持 OpenAI 兼容的 /chat/completions 接口。API Key 只从环境变量读取，不写入数据库。</p>
+        </div>
+        <button class="icon-btn modal-close" type="button" data-close="modelModal" aria-label="关闭">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <form id="modelForm" novalidate>
+        <input id="modelId" type="hidden">
+        <div class="form-grid">
+          <label class="field">
+            <span class="field-label">配置名称 <em>*</em></span>
+            <input id="configName" type="text" maxlength="100" required autocomplete="off" placeholder="例如：DeepSeek 生产">
+          </label>
+          <label class="field">
+            <span class="field-label">模型名称 <em>*</em></span>
+            <input id="modelName" type="text" maxlength="120" required autocomplete="off" placeholder="例如：deepseek-chat">
+          </label>
+          <label class="field field-full">
+            <span class="field-label">接口地址 <em>*</em></span>
+            <input id="baseUrl" type="url" maxlength="255" required autocomplete="off" placeholder="https://api.deepseek.com">
+            <span class="field-hint">填写供应商 API 根地址，不要包含 /chat/completions。</span>
+          </label>
+          <label class="field">
+            <span class="field-label">API Key 环境变量 <em>*</em></span>
+            <input id="apiKeyEnv" type="text" maxlength="100" required autocomplete="off" placeholder="DEEPSEEK_API_KEY">
+            <span class="field-hint">服务器环境变量名，例如 DEEPSEEK_API_KEY 或 BAILIAN_API_KEY。</span>
+          </label>
+          <label class="field">
+            <span class="field-label">对话路径 <em>*</em></span>
+            <input id="chatPath" type="text" maxlength="120" required autocomplete="off" placeholder="/chat/completions">
+            <span class="field-hint">OpenAI 兼容路径通常为 /chat/completions。</span>
+          </label>
+          <label class="field">
+            <span class="field-label">上下文预算 <em>*</em></span>
+            <input id="contextBudget" type="number" min="256" max="1048576" step="1" required>
+          </label>
+          <label class="field">
+            <span class="field-label">最大输出 Token <em>*</em></span>
+            <input id="maxOutputTokens" type="number" min="1" max="262144" step="1" required>
+          </label>
+          <label class="field">
+            <span class="field-label">连接超时（毫秒） <em>*</em></span>
+            <input id="connectTimeoutMs" type="number" min="1000" max="600000" step="1000" required>
+          </label>
+          <label class="field">
+            <span class="field-label">读取超时（毫秒） <em>*</em></span>
+            <input id="readTimeoutMs" type="number" min="1000" max="600000" step="1000" required>
+          </label>
+          <label class="checkbox field-full">
+            <input id="webSearchEnabled" type="checkbox">
+            <span>启用联网搜索</span>
+          </label>
+          <label class="field field-full">
+            <span class="field-label">联网模式</span>
+            <select id="webSearchMode">
+              <option value="DEEPSEEK_TOOLS">DeepSeek 原生 Search / Fetch</option>
+              <option value="QWEN_ENABLE_SEARCH">千问内置联网搜索（enable_search）</option>
+            </select>
+            <span class="field-hint">DeepSeek 模式由服务端执行 web_search/web_fetch；千问模式在请求中传入 enable_search，由千问直接检索。</span>
+          </label>
+          <label class="field field-full">
+            <span class="field-label">备注</span>
+            <input id="remark" type="text" maxlength="255" autocomplete="off" placeholder="可选，例如：生产主模型">
+          </label>
+        </div>
+        <div class="modal-foot">
+          <button class="btn btn-ghost" type="button" data-close="modelModal">取消</button>
+          <button id="modelSubmitBtn" class="btn btn-primary" type="submit">保存配置</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="toastRoot" class="toast-root" aria-live="polite"></div>
+
+  <script src="./assets/common.js"></script>
+  <script src="./assets/page.js"></script>
+  <script src="./assets/models.js"></script>
+</body>
+</html>
